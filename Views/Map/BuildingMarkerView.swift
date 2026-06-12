@@ -42,12 +42,31 @@ struct BuildingMarkerView: View {
   }
 }
 
+/// 棟バッジ＋名称ラベルのアノテーション表示（MapLibreマーカー用）
+struct BuildingAnnotationView: View {
+
+  /// 表示する講義棟
+  let building: CampusBuilding
+
+  var body: some View {
+    VStack(spacing: 2) {
+      BuildingMarkerView(building: building)
+      Text(building.displayName)
+        .font(.caption2.bold())
+        .foregroundStyle(.white)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color.black.opacity(0.55), in: Capsule())
+    }
+  }
+}
+
 #Preview {
   ZStack {
     Color.black.ignoresSafeArea()
     HStack(spacing: 12) {
-      BuildingMarkerView(building: .building1)
-      BuildingMarkerView(building: .building5)
+      BuildingAnnotationView(building: .building1)
+      BuildingAnnotationView(building: .building5)
     }
   }
 }

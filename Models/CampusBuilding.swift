@@ -17,6 +17,9 @@ struct CampusBuilding: Identifiable, Hashable {
   let latitude: CLLocationDegrees
   /// 経度
   let longitude: CLLocationDegrees
+  /// 建物の高さ（メートル．3D押し出し表示に使用）
+  /// ⚠️ 6号館（OSMの5階建て×4m）以外は構内図からの推定値．実際の階数に合わせて調整してください
+  let heightMeters: Double
   /// 付帯施設の説明（例: 図書館．ない場合はnil）
   let facilityNote: String?
 
@@ -25,12 +28,14 @@ struct CampusBuilding: Identifiable, Hashable {
     name: String,
     latitude: CLLocationDegrees,
     longitude: CLLocationDegrees,
+    heightMeters: Double,
     facilityNote: String? = nil
   ) {
     self.id = id
     self.name = name
     self.latitude = latitude
     self.longitude = longitude
+    self.heightMeters = heightMeters
     self.facilityNote = facilityNote
   }
 
@@ -56,38 +61,46 @@ extension CampusBuilding {
 
   static let building1 = CampusBuilding(
     id: "bldg-1", name: "1号館",
-    latitude: 35.68922691016782, longitude: 140.02080340038157
+    latitude: 35.68922691016782, longitude: 140.02080340038157,
+    heightMeters: 80
   )
   static let building2 = CampusBuilding(
     id: "bldg-2", name: "2号館",
-    latitude: 35.68812680741046, longitude: 140.02013459558546
+    latitude: 35.68812680741046, longitude: 140.02013459558546,
+    heightMeters: 75
   )
   static let building3 = CampusBuilding(
     id: "bldg-3", name: "3号館",
     latitude: 35.688425626788934, longitude: 140.0216374382655,
+    heightMeters: 20,
     facilityNote: "食堂・購買"
   )
   static let building4 = CampusBuilding(
     id: "bldg-4", name: "4号館",
     latitude: 35.68825243815841, longitude: 140.02105162021704,
+    heightMeters: 15,
     facilityNote: "部室棟"
   )
   static let building5 = CampusBuilding(
     id: "bldg-5", name: "5号館",
     latitude: 35.68991717704099, longitude: 140.02067560458983,
+    heightMeters: 35,
     facilityNote: "図書館"
   )
   static let building6 = CampusBuilding(
     id: "bldg-6", name: "6号館",
-    latitude: 35.68879206852663, longitude: 140.02048520598552
+    latitude: 35.68879206852663, longitude: 140.02048520598552,
+    heightMeters: 20
   )
   static let building7 = CampusBuilding(
     id: "bldg-7", name: "7号館",
-    latitude: 35.68878154618239, longitude: 140.02177066212877
+    latitude: 35.68878154618239, longitude: 140.02177066212877,
+    heightMeters: 50
   )
   static let building8 = CampusBuilding(
     id: "bldg-8", name: "8号館",
-    latitude: 35.687828799177346, longitude: 140.0198429667657
+    latitude: 35.687828799177346, longitude: 140.0198429667657,
+    heightMeters: 25
   )
 
   /// 津田沼キャンパスの全講義棟

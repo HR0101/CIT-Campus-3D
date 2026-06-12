@@ -2,50 +2,16 @@
 //  CampusMapView.swift
 //  CIT-Campus-3D
 //
-//  3Dキャンパスマップ画面．
+//  3Dキャンパスマップ画面（MapLibre＋OSMベース）．
 //  「次の授業」の講義棟を目的地として，現在地からの徒歩経路をpitch付き3D視点で描画する．
+//  キャンパス8棟はOSM実測の外形＋自前の高さデータで高忠実に押し出し表示される．
 //
 
-import MapKit
 import SwiftUI
 import UIKit
 
-/// マップの表示スタイル（標準3D／衛星写真3D）
-enum CampusMapStyle: String, CaseIterable, Identifiable {
-  /// 標準マップ（Appleの3Dビルモデル）
-  case standard
-  /// 衛星写真＋ラベル（実際の建物の見た目に近い）
-  case hybrid
-
-  var id: String { rawValue }
-
-  /// 切り替えボタンの表示名
-  var displayName: String {
-    switch self {
-    case .standard: return "標準"
-    case .hybrid: return "衛星"
-    }
-  }
-
-  /// MapKitへ渡すスタイル
-  var mapStyle: MapStyle {
-    switch self {
-    case .standard:
-      return .standard(elevation: .realistic, pointsOfInterest: .excludingAll, showsTraffic: false)
-    case .hybrid:
-      return .hybrid(elevation: .realistic, pointsOfInterest: .excludingAll, showsTraffic: false)
-    }
-  }
-}
-
 /// 3Dマップとナビゲーション状態を統合した画面
 struct CampusMapView: View {
-
-  /// 経路線の描画スタイルに関する定数
-  private enum RouteStyleConstants {
-    /// 経路線の太さ
-    static let lineWidth: CGFloat = 6
-  }
 
   /// 目的地の講義棟（次の授業の講義棟．不明な場合はnil）
   private let destinationBuilding: CampusBuilding?
@@ -59,14 +25,6 @@ struct CampusMapView: View {
   /// マップ状態のViewModel
   @State private var viewModel: CampusMapViewModel
 
-  /// 選択中のマップスタイル（次回起動時も保持する）
-  @AppStorage("campusMapStyle") private var mapStyleRawValue = CampusMapStyle.standard.rawValue
-
-  /// 選択中のマップスタイル（enumとしてのアクセサ）
-  private var selectedMapStyle: CampusMapStyle {
-    CampusMapStyle(rawValue: mapStyleRawValue) ?? .standard
-  }
-
   init(destinationBuilding: CampusBuilding?, nextLecture: NextLectureResult?) {
     self.destinationBuilding = destinationBuilding
     self.nextLecture = nextLecture
@@ -75,15 +33,21 @@ struct CampusMapView: View {
 
   var body: some View {
     ZStack(alignment: .top) {
-      campusMap
+      MapLibreMapView(
+        destinationBuilding: viewModel.destinationBuilding,
+        route: viewModel.route,
+        cameraCommand: viewModel.cameraCommand
+      )
+      .ignoresSafeArea()
+
       statusOverlay
         .padding(.horizontal)
         .padding(.top, 8)
     }
-    .overlay(alignment: .bottomLeading) {
-      mapStylePicker
-        .padding(.leading)
-        .padding(.bottom, 8)
+    .overlay(alignment: .bottomTrailing) {
+      focusUserButton
+        .padding(.trailing)
+        .padding(.bottom, 56)
     }
     .onAppear {
       locationService.startUpdating()
@@ -109,82 +73,21 @@ struct CampusMapView: View {
     .preferredColorScheme(.dark)
   }
 
-  // MARK: - マップ本体
+  // MARK: - 現在地ボタン
 
-  private var campusMap: some View {
-    Map(position: $viewModel.cameraPosition) {
-      // 現在地（青い点）
-      UserAnnotation()
-
-      // すべての講義棟の常設マーカー（目的地はパルスピンで別表示するため除外）
-      ForEach(CampusBuilding.tsudanumaBuildings) { building in
-        if building.id != viewModel.destinationBuilding?.id {
-          Annotation(building.displayName, coordinate: building.coordinate, anchor: .center) {
-            BuildingMarkerView(building: building)
-          }
-        }
-      }
-
-      // 目的の講義棟のハイライトピン
-      if let building = viewModel.destinationBuilding {
-        Annotation(building.displayName, coordinate: building.coordinate, anchor: .bottom) {
-          DestinationMarkerView()
-        }
-      }
-
-      // 徒歩経路のポリライン
-      if let route = viewModel.route {
-        MapPolyline(route.polyline)
-          .stroke(
-            LinearGradient(
-              colors: [.cyan, .blue],
-              startPoint: .leading,
-              endPoint: .trailing
-            ),
-            style: StrokeStyle(
-              lineWidth: RouteStyleConstants.lineWidth,
-              lineCap: .round,
-              lineJoin: .round
-            )
-          )
-      }
+  /// カメラを現在地へ移動するボタン
+  private var focusUserButton: some View {
+    Button {
+      viewModel.focusOnUserLocation(locationService.currentLocation)
+    } label: {
+      Image(systemName: "location.fill")
+        .font(.system(size: 18, weight: .semibold))
+        .foregroundStyle(.cyan)
+        .frame(width: 44, height: 44)
+        .background(.ultraThinMaterial, in: Circle())
+        .environment(\.colorScheme, .dark)
     }
-    // realistic指定で3D表示（建物・地形の立体表示）を有効化．
-    // POI（飲食店等のアイコン）は除外し，没入感のあるミニマルな画面にする．
-    .mapStyle(selectedMapStyle.mapStyle)
-    .mapControls {
-      MapUserLocationButton()
-      MapCompass()
-      MapPitchToggle()
-      MapScaleView()
-    }
-    .ignoresSafeArea(edges: .bottom)
-  }
-
-  // MARK: - マップスタイル切り替え
-
-  /// 標準3D／衛星3Dの切り替えコントロール
-  private var mapStylePicker: some View {
-    HStack(spacing: 0) {
-      ForEach(CampusMapStyle.allCases) { style in
-        Button {
-          mapStyleRawValue = style.rawValue
-        } label: {
-          Text(style.displayName)
-            .font(.caption.bold())
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(
-              selectedMapStyle == style ? Color.cyan.opacity(0.3) : Color.clear,
-              in: Capsule()
-            )
-            .foregroundStyle(selectedMapStyle == style ? .cyan : .secondary)
-        }
-      }
-    }
-    .padding(4)
-    .background(.ultraThinMaterial, in: Capsule())
-    .environment(\.colorScheme, .dark)
+    .accessibilityLabel("現在地へ移動")
   }
 
   // MARK: - 状態オーバーレイ（信頼性の担保）

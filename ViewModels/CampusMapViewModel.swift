@@ -4,11 +4,13 @@
 //
 //  マップ画面の状態（カメラ・経路・進行フェーズ）を管理するViewModel．
 //  目的地は「次の授業」の判定結果に応じて動的に切り替わる．
+//  カメラ操作はCameraCommandとして発行し，MapLibreビューが適用する．
 //
 
+import CoreLocation
+import Foundation
 import MapKit
 import Observation
-import SwiftUI
 
 /// ナビゲーションの進行状態
 enum NavigationPhase: Equatable {
@@ -22,6 +24,45 @@ enum NavigationPhase: Equatable {
   case showingRoute
   /// 経路探索に失敗
   case failed(message: String)
+}
+
+/// マップカメラへの移動指示（MapLibreビューが受け取って適用する）
+struct CameraCommand: Equatable {
+  /// 指示の識別子（同じ指示を二重適用しないために使う）
+  let id: UUID
+  /// 注視点の緯度
+  let centerLatitude: CLLocationDegrees
+  /// 注視点の経度
+  let centerLongitude: CLLocationDegrees
+  /// 注視点からカメラまでの距離（メートル）
+  let distance: CLLocationDistance
+  /// 方位角（北を0°とした時計回りの度数）
+  let heading: CLLocationDirection
+  /// 3D視点の傾き（度）
+  let pitch: CGFloat
+
+  init(
+    center: CLLocationCoordinate2D,
+    distance: CLLocationDistance,
+    heading: CLLocationDirection,
+    pitch: CGFloat
+  ) {
+    self.id = UUID()
+    self.centerLatitude = center.latitude
+    self.centerLongitude = center.longitude
+    self.distance = distance
+    self.heading = heading
+    self.pitch = pitch
+  }
+
+  /// 注視点の座標
+  var center: CLLocationCoordinate2D {
+    CLLocationCoordinate2D(latitude: centerLatitude, longitude: centerLongitude)
+  }
+
+  static func == (lhs: CameraCommand, rhs: CameraCommand) -> Bool {
+    lhs.id == rhs.id
+  }
 }
 
 /// 3Dマップ画面のViewModel
@@ -39,12 +80,12 @@ final class CampusMapViewModel {
     static let routeDistanceMultiplier: Double = 2.2
     /// 経路が極端に短い場合でも確保するカメラ距離（メートル）
     static let minimumRouteCameraDistance: CLLocationDistance = 400
-    /// カメラ移動アニメーションの秒数
-    static let cameraAnimationDuration: Double = 1.0
+    /// 現在地フォーカス時のカメラ距離（メートル）
+    static let userFocusDistance: CLLocationDistance = 500
   }
 
-  /// マップのカメラ位置（Viewとバインドする）
-  var cameraPosition: MapCameraPosition
+  /// マップへのカメラ移動指示（MapLibreビューが監視する）
+  private(set) var cameraCommand: CameraCommand?
 
   /// 探索済みの徒歩経路
   private(set) var route: MKRoute?
@@ -60,13 +101,11 @@ final class CampusMapViewModel {
   init(destinationBuilding: CampusBuilding?) {
     self.destinationBuilding = destinationBuilding
     // 起動直後はキャンパス中心を3D視点（pitch付き）で見渡す
-    self.cameraPosition = .camera(
-      MapCamera(
-        centerCoordinate: CampusBuilding.campusCenter,
-        distance: CameraConstants.initialDistance,
-        heading: 0,
-        pitch: CameraConstants.pitchDegrees
-      )
+    self.cameraCommand = CameraCommand(
+      center: CampusBuilding.campusCenter,
+      distance: CameraConstants.initialDistance,
+      heading: 0,
+      pitch: CameraConstants.pitchDegrees
     )
   }
 
@@ -114,6 +153,17 @@ final class CampusMapViewModel {
     await calculateRoute(from: location.coordinate)
   }
 
+  /// 現在地を中心にカメラを移動する（現在地ボタン用）
+  func focusOnUserLocation(_ location: CLLocation?) {
+    guard let location else { return }
+    cameraCommand = CameraCommand(
+      center: location.coordinate,
+      distance: CameraConstants.userFocusDistance,
+      heading: 0,
+      pitch: CameraConstants.pitchDegrees
+    )
+  }
+
   // MARK: - Private
 
   /// 徒歩経路を探索し，成功したらカメラを経路全体へ移動する
@@ -152,18 +202,12 @@ final class CampusMapViewModel {
       CameraConstants.minimumRouteCameraDistance,
       routeDistance * CameraConstants.routeDistanceMultiplier
     )
-    let cameraHeading = bearing(from: source, to: destination)
-
-    withAnimation(.easeInOut(duration: CameraConstants.cameraAnimationDuration)) {
-      cameraPosition = .camera(
-        MapCamera(
-          centerCoordinate: centerCoordinate,
-          distance: cameraDistance,
-          heading: cameraHeading,
-          pitch: CameraConstants.pitchDegrees
-        )
-      )
-    }
+    cameraCommand = CameraCommand(
+      center: centerCoordinate,
+      distance: cameraDistance,
+      heading: bearing(from: source, to: destination),
+      pitch: CameraConstants.pitchDegrees
+    )
   }
 
   /// 2点間の方位角（北を0°とした時計回りの度数）を計算する
