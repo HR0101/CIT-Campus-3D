@@ -40,14 +40,14 @@ struct MapLibreMapView: UIViewRepresentable {
     static let campusGeoJSONName = "CampusBuildings"
     /// カメラ移動アニメーションの秒数
     static let cameraAnimationDuration: TimeInterval = 1.2
-    /// 周辺市街ビルの色
-    static let cityBuildingColor = UIColor(white: 0.32, alpha: 1.0)
-    /// 周辺市街ビルの不透明度
-    static let cityBuildingOpacity: Float = 0.75
-    /// キャンパス棟の色（シアン系で目立たせる）
-    static let campusBuildingColor = UIColor(red: 0.25, green: 0.55, blue: 0.65, alpha: 1.0)
-    /// キャンパス棟の不透明度
-    static let campusBuildingOpacity: Float = 0.92
+    /// 周辺市街ビルの色（ベース地図に馴染む暗いグレー）
+    static let cityBuildingColor = UIColor(white: 0.30, alpha: 1.0)
+    /// 周辺市街ビルの不透明度（透過すると視認性が落ちるため完全不透明にする）
+    static let cityBuildingOpacity: Float = 1.0
+    /// キャンパス棟の色（市街よりわずかに明るいグレーで控えめに区別する）
+    static let campusBuildingColor = UIColor(white: 0.42, alpha: 1.0)
+    /// キャンパス棟の不透明度（完全不透明）
+    static let campusBuildingOpacity: Float = 1.0
     /// 経路線の色
     static let routeColor = UIColor.systemCyan
     /// 経路線の太さ
@@ -220,10 +220,15 @@ extension MapLibreMapView {
         return
       }
 
-      // 各棟のポリゴンへ，マスタの高さ（heightMeters）を属性として付与する
+      // 各ポリゴンへ高さを付与する．
+      // GeoJSON側にheightが明示されていればそれを優先し（複合形状の低層部など），
+      // なければマスタの高さ（heightMeters）を使う
       for case let polygon as MLNPolygonFeature in collection.shapes {
         let name = polygon.attribute(forKey: "name") as? String ?? ""
-        let height = CampusBuilding.building(named: name)?.heightMeters ?? 0
+        let explicitHeight = polygon.attribute(forKey: "height") as? Double
+        let height = explicitHeight
+          ?? CampusBuilding.building(named: name)?.heightMeters
+          ?? 0
         var attributes = polygon.attributes
         attributes["height"] = height
         polygon.attributes = attributes

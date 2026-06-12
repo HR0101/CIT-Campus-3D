@@ -64,6 +64,8 @@ extension CampusBuilding {
     latitude: 35.68922691016782, longitude: 140.02080340038157,
     heightMeters: 80
   )
+  // 2号館は高層タワー＋低層棟の複合形状．heightMetersはタワー部の高さで，
+  // 低層棟（東側20m）はCampusBuildings.geojson内のheightプロパティで定義している
   static let building2 = CampusBuilding(
     id: "bldg-2", name: "2号館",
     latitude: 35.68812680741046, longitude: 140.02013459558546,
