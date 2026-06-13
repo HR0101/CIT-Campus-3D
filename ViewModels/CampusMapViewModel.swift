@@ -4,6 +4,7 @@
 //
 //  マップ画面の状態（カメラ・経路・進行フェーズ）を管理するViewModel．
 //  目的地は「次の授業」の判定結果に応じて動的に切り替わる．
+//  「大学周辺でのみ経路を表示」設定が有効な場合，範囲外では経路を描かない．
 //  カメラ操作はCameraCommandとして発行し，MapLibreビューが適用する．
 //
 
@@ -18,6 +19,8 @@ enum NavigationPhase: Equatable {
   case idle
   /// 現在地の取得待ち
   case waitingForLocation
+  /// 大学の周辺ではないため経路を表示していない
+  case outsideCampus
   /// 経路を探索中
   case calculatingRoute
   /// 経路の表示中
@@ -100,57 +103,71 @@ final class CampusMapViewModel {
 
   init(destinationBuilding: CampusBuilding?) {
     self.destinationBuilding = destinationBuilding
-    // 起動直後はキャンパス中心を3D視点（pitch付き）で見渡す
+    // 起動直後は目的地のキャンパス（未定なら津田沼）の中心を3D視点で見渡す
+    let initialCenter = destinationBuilding?.campus.center ?? Campus.tsudanuma.center
     self.cameraCommand = CameraCommand(
-      center: CampusBuilding.campusCenter,
+      center: initialCenter,
       distance: CameraConstants.initialDistance,
       heading: 0,
       pitch: CameraConstants.pitchDegrees
     )
   }
 
-  /// 現在地の更新を受け取り，未探索なら経路を探索する
-  /// （探索失敗後はユーザーの「再試行」操作まで自動では再探索しない）
-  func handleLocationUpdate(_ location: CLLocation?) async {
-    guard
-      let location,
-      destinationBuilding != nil,
-      route == nil,
-      phase == .idle || phase == .waitingForLocation
-    else {
-      return
-    }
-    await calculateRoute(from: location.coordinate)
-  }
-
-  /// 目的地を切り替える（次の授業が変わったときに呼ばれる）
-  func updateDestination(
-    _ building: CampusBuilding?,
-    currentLocation: CLLocation?
-  ) async {
+  /// 目的地を切り替える（次の授業が変わったときに呼ばれる）．
+  /// 実際の経路探索はこの後のrefreshRouteで行う．
+  func setDestination(_ building: CampusBuilding?) {
     guard building?.id != destinationBuilding?.id else { return }
     destinationBuilding = building
     route = nil
+    if building == nil {
+      phase = .idle
+    }
+  }
 
-    guard building != nil else {
+  /// 現在地・設定をもとに，経路の表示状態を更新する．
+  /// 現在地の更新・目的地の変更・設定変更のいずれでも呼ばれる中心的なメソッド．
+  /// - Parameters:
+  ///   - currentLocation: 現在地（未取得ならnil）
+  ///   - restrictToCampus: 大学周辺でのみ経路を表示する設定
+  func refreshRoute(currentLocation: CLLocation?, restrictToCampus: Bool) async {
+    // 目的地が未定なら何も表示しない
+    guard let building = destinationBuilding else {
+      route = nil
       phase = .idle
       return
     }
-    if let currentLocation {
-      await calculateRoute(from: currentLocation.coordinate)
+
+    // 現在地が未取得なら取得待ち
+    guard let location = currentLocation else {
+      if route == nil {
+        phase = .waitingForLocation
+      }
+      return
+    }
+
+    // 大学周辺の判定（制限が無効なら常に範囲内とみなす）
+    let isWithinCampus = !restrictToCampus
+      || building.campus.isWithinVicinity(of: location.coordinate)
+    guard isWithinCampus else {
+      // 範囲外では経路を出さない
+      route = nil
+      phase = .outsideCampus
+      return
+    }
+
+    // 範囲内: 経路が未取得なら探索する（探索済みならそのまま表示を続ける）
+    if route == nil {
+      guard phase != .calculatingRoute else { return }
+      await calculateRoute(from: location.coordinate, to: building)
     } else {
-      phase = .waitingForLocation
+      phase = .showingRoute
     }
   }
 
   /// 経路探索を再試行する（エラーバナーのリトライ用）
-  func retryRoute(from location: CLLocation?) async {
-    guard destinationBuilding != nil else { return }
-    guard let location else {
-      phase = .waitingForLocation
-      return
-    }
-    await calculateRoute(from: location.coordinate)
+  func retryRoute(currentLocation: CLLocation?, restrictToCampus: Bool) async {
+    route = nil
+    await refreshRoute(currentLocation: currentLocation, restrictToCampus: restrictToCampus)
   }
 
   /// 現在地を中心にカメラを移動する（現在地ボタン用）
@@ -167,22 +184,24 @@ final class CampusMapViewModel {
   // MARK: - Private
 
   /// 徒歩経路を探索し，成功したらカメラを経路全体へ移動する
-  private func calculateRoute(from source: CLLocationCoordinate2D) async {
-    guard let destination = destinationBuilding else { return }
+  private func calculateRoute(from source: CLLocationCoordinate2D, to building: CampusBuilding) async {
     phase = .calculatingRoute
     do {
       let walkingRoute = try await routeService.calculateWalkingRoute(
         from: source,
-        to: destination.coordinate
+        to: building.coordinate
       )
+      // 探索中に目的地が変わっていた場合は結果を破棄する
+      guard building.id == destinationBuilding?.id else { return }
       route = walkingRoute
       phase = .showingRoute
       moveCameraToRoute(
         from: source,
-        to: destination.coordinate,
+        to: building.coordinate,
         routeDistance: walkingRoute.distance
       )
     } catch {
+      guard building.id == destinationBuilding?.id else { return }
       route = nil
       phase = .failed(message: error.localizedDescription)
     }

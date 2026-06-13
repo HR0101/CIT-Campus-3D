@@ -22,6 +22,8 @@ final class Lecture {
   var subjectName: String = ""
   /// 教員名
   var teacherName: String = ""
+  /// キャンパスの生値（Campus.rawValue．クエリの単純化のためIntで保持）
+  var campusRawValue: Int = Campus.tsudanuma.rawValue
   /// 講義棟名（例: 7号館．CampusBuildingのnameと一致させる．不明の場合は空文字）
   var buildingName: String = ""
   /// 教室番号（例: 731．不明の場合は空文字）
@@ -33,6 +35,7 @@ final class Lecture {
     period: Int,
     subjectName: String,
     teacherName: String,
+    campus: Campus,
     buildingName: String,
     roomNumber: String
   ) {
@@ -41,6 +44,7 @@ final class Lecture {
     self.period = period
     self.subjectName = subjectName
     self.teacherName = teacherName
+    self.campusRawValue = campus.rawValue
     self.buildingName = buildingName
     self.roomNumber = roomNumber
   }
@@ -57,9 +61,15 @@ final class Lecture {
     set { weekdayRawValue = newValue.rawValue }
   }
 
+  /// キャンパス（enumとしてのアクセサ．不正値の場合は津田沼にフォールバック）
+  var campus: Campus {
+    get { Campus(rawValue: campusRawValue) ?? .tsudanuma }
+    set { campusRawValue = newValue.rawValue }
+  }
+
   /// 対応する講義棟（マスタに存在しない棟名の場合はnil）
   var building: CampusBuilding? {
-    CampusBuilding.building(named: buildingName)
+    CampusBuilding.building(named: buildingName, campus: campus)
   }
 
   /// 時限の定義（開始・終了時刻つき．不正な時限番号の場合はnil）
@@ -67,17 +77,18 @@ final class Lecture {
     ClassPeriod.period(number: period)
   }
 
-  /// 場所の表示文字列（例: 7号館 731教室．不明の場合は「教室未定」）
+  /// 場所の表示文字列（例: 津田沼 7号館 731教室．不明の場合は「津田沼・教室未定」）
   var placeText: String {
+    let campusName = campus.displayName
     if buildingName.isEmpty && roomNumber.isEmpty {
-      return "教室未定"
+      return "\(campusName)・教室未定"
     }
     if roomNumber.isEmpty {
-      return buildingName
+      return "\(campusName) \(buildingName)"
     }
     if buildingName.isEmpty {
-      return "\(roomNumber)教室"
+      return "\(campusName) \(roomNumber)教室"
     }
-    return "\(buildingName) \(roomNumber)教室"
+    return "\(campusName) \(buildingName) \(roomNumber)教室"
   }
 }

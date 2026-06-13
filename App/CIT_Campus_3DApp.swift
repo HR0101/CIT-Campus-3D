@@ -2,7 +2,7 @@
 //  CIT_Campus_3DApp.swift
 //  CIT-Campus-3D
 //
-//  アプリのエントリポイント．SwiftDataコンテナの生成とダークモード固定を担う．
+//  アプリのエントリポイント．SwiftDataコンテナの生成・共有サービスの注入・ダークモード固定を担う．
 //  コンテナ生成に失敗した場合はクラッシュさせず，フォールバック画面を表示する．
 //
 
@@ -17,6 +17,12 @@ struct CIT_Campus_3DApp: App {
 
   /// コンテナ生成失敗時のエラーメッセージ
   private let containerErrorMessage: String?
+
+  /// ユーザー設定（経路表示・通知）
+  @State private var appSettings = AppSettings()
+
+  /// 通知サービス（許可管理・予約）
+  @State private var notificationService = NotificationService()
 
   init() {
     do {
@@ -38,6 +44,9 @@ struct CIT_Campus_3DApp: App {
           StorageErrorView(message: containerErrorMessage ?? "不明なエラーが発生しました．")
         }
       }
+      // 共有サービスを全画面へ注入する
+      .environment(appSettings)
+      .environment(notificationService)
       // ダークモード基調のデザイン要件のため，常にダーク表示に固定する
       .preferredColorScheme(.dark)
     }

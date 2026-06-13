@@ -30,8 +30,16 @@ struct AddLectureView: View {
   /// 教員名の入力値
   @State private var teacherName = ""
 
+  /// 選択中のキャンパス
+  @State private var campus: Campus = .tsudanuma
+
   /// 選択中の講義棟名（空文字は未定）
   @State private var buildingName = CampusBuilding.tsudanumaBuildings.first?.name ?? ""
+
+  /// 選択中のキャンパスの建物一覧
+  private var campusBuildings: [CampusBuilding] {
+    CampusBuilding.allBuildings.filter { $0.campus == campus }
+  }
 
   /// 教室番号の入力値
   @State private var roomNumber = ""
@@ -77,9 +85,14 @@ struct AddLectureView: View {
         Section("授業情報") {
           TextField("科目名（必須）", text: $subjectName)
           TextField("教員名", text: $teacherName)
+          Picker("キャンパス", selection: $campus) {
+            ForEach(Campus.allCases) { campus in
+              Text(campus.displayName).tag(campus)
+            }
+          }
           Picker("講義棟", selection: $buildingName) {
             Text("未定").tag("")
-            ForEach(CampusBuilding.tsudanumaBuildings) { building in
+            ForEach(campusBuildings) { building in
               Text(building.name).tag(building.name)
             }
           }
@@ -107,6 +120,11 @@ struct AddLectureView: View {
       } message: {
         Text(saveErrorMessage)
       }
+      .onChange(of: campus) { _, newCampus in
+        // キャンパスを切り替えたら講義棟の選択をそのキャンパスの先頭に戻す
+        buildingName = CampusBuilding.allBuildings
+          .first { $0.campus == newCampus }?.name ?? ""
+      }
     }
     .preferredColorScheme(.dark)
   }
@@ -121,6 +139,7 @@ struct AddLectureView: View {
       period: periodNumber,
       subjectName: trimmedSubjectName,
       teacherName: teacherName.trimmingCharacters(in: .whitespacesAndNewlines),
+      campus: campus,
       buildingName: buildingName,
       roomNumber: roomNumber.trimmingCharacters(in: .whitespacesAndNewlines)
     )

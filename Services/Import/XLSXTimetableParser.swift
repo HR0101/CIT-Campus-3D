@@ -155,6 +155,7 @@ struct XLSXTimetableParser {
             period: marker.period,
             subjectName: parsed.subjectName,
             teacherName: parsed.teacherName,
+            campus: parsed.campus,
             buildingName: parsed.buildingName,
             roomNumber: parsed.roomNumber
           )

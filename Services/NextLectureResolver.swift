@@ -28,22 +28,27 @@ struct NextLectureResolver {
   private enum ResolverConstants {
     /// 何日先まで授業を探すか（今日を含めて1週間）
     static let searchDayLimit = 7
+    /// 一度に取り出す授業の最大件数（通知のまとめ予約用）
+    static let defaultMaxCount = 16
   }
 
-  /// 登録済みの授業から次の授業を判定する
+  /// 登録済みの授業から，これから始まる授業を時刻の早い順に列挙する
   /// - Parameters:
   ///   - lectures: 全登録授業
   ///   - now: 基準となる現在時刻
+  ///   - maxCount: 取り出す最大件数
   ///   - calendar: 判定に使うカレンダー
-  /// - Returns: 次の授業（1週間以内に見つからない場合はnil）
-  func resolveNextLecture(
+  /// - Returns: これから始まる授業（終了済みは除外）を時刻順に並べた配列
+  func resolveUpcoming(
     from lectures: [Lecture],
     now: Date,
+    maxCount: Int = ResolverConstants.defaultMaxCount,
     calendar: Calendar = .current
-  ) -> NextLectureResult? {
-    guard !lectures.isEmpty else { return nil }
+  ) -> [NextLectureResult] {
+    guard !lectures.isEmpty else { return [] }
 
-    // 今日から最大7日先まで順に探す
+    var results: [NextLectureResult] = []
+    // 今日から最大7日先まで順に走査する
     for dayOffset in 0..<ResolverConstants.searchDayLimit {
       guard let day = calendar.date(byAdding: .day, value: dayOffset, to: now) else {
         continue
@@ -52,7 +57,7 @@ struct NextLectureResolver {
       let weekdayValue = calendar.component(.weekday, from: day)
 
       // その日の学期・曜日に該当する授業を時刻つきで列挙
-      let candidates = lectures
+      let dayResults = lectures
         .filter {
           $0.semesterRawValue == semester.rawValue && $0.weekdayRawValue == weekdayValue
         }
@@ -74,12 +79,23 @@ struct NextLectureResolver {
             isToday: dayOffset == 0
           )
         }
+        .sorted { $0.startDate < $1.startDate }
 
-      // 最も早く始まる授業を「次の授業」とする
-      if let next = candidates.min(by: { $0.startDate < $1.startDate }) {
-        return next
+      results.append(contentsOf: dayResults)
+      if results.count >= maxCount {
+        break
       }
     }
-    return nil
+    return Array(results.prefix(maxCount))
+  }
+
+  /// 登録済みの授業から次の授業を1件だけ判定する
+  /// - Returns: 次の授業（1週間以内に見つからない場合はnil）
+  func resolveNextLecture(
+    from lectures: [Lecture],
+    now: Date,
+    calendar: Calendar = .current
+  ) -> NextLectureResult? {
+    resolveUpcoming(from: lectures, now: now, maxCount: 1, calendar: calendar).first
   }
 }

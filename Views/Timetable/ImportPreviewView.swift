@@ -74,15 +74,16 @@ private struct DraftRow: View {
 
   let draft: LectureDraft
 
-  /// 場所の表示文字列
+  /// 場所の表示文字列（キャンパス名つき）
   private var placeText: String {
+    let campusName = draft.campus.displayName
     if draft.buildingName.isEmpty && draft.roomNumber.isEmpty {
-      return "教室未定"
+      return "\(campusName)・教室未定"
     }
     if draft.buildingName.isEmpty {
-      return "\(draft.roomNumber)教室"
+      return "\(campusName) \(draft.roomNumber)教室"
     }
-    return "\(draft.buildingName) \(draft.roomNumber)教室"
+    return "\(campusName) \(draft.buildingName) \(draft.roomNumber)教室"
   }
 
   var body: some View {

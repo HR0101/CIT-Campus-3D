@@ -1,0 +1,126 @@
+//
+//  SettingsView.swift
+//  CIT-Campus-3D
+//
+//  経路表示・通知のオンオフを切り替える設定画面．
+//
+
+import SwiftUI
+import UIKit
+
+/// 設定画面（経路表示・通知）
+struct SettingsView: View {
+
+  @Environment(AppSettings.self) private var settings
+  @Environment(NotificationService.self) private var notifications
+
+  var body: some View {
+    // @Observableの設定をToggle/Pickerへバインドするための束縛
+    @Bindable var settings = settings
+
+    NavigationStack {
+      Form {
+        // 経路表示
+        Section {
+          Toggle("大学周辺でのみ経路を表示", isOn: $settings.restrictRouteToCampus)
+        } header: {
+          Text("経路表示")
+        } footer: {
+          Text("オンのとき，キャンパスから離れている間は徒歩ルートを表示しません．大学の近く（約\(Int(Campus.vicinityRadiusMeters))m以内）に入ると自動で表示されます．")
+        }
+
+        // 授業前リマインダー
+        Section {
+          Toggle("授業の前に通知", isOn: $settings.enableClassReminder)
+          if settings.enableClassReminder {
+            Picker("通知タイミング", selection: $settings.classReminderOffsetMinutes) {
+              ForEach(AppSettings.reminderOffsetOptions, id: \.self) { minutes in
+                Text("\(minutes)分前").tag(minutes)
+              }
+            }
+          }
+        } header: {
+          Text("授業前リマインダー")
+        } footer: {
+          Text("次の授業の開始時刻の前に通知します．")
+        }
+
+        // 出発リマインダー
+        Section {
+          Toggle("出発時刻に通知", isOn: $settings.enableDepartureReminder)
+          if settings.enableDepartureReminder {
+            Picker("余裕時間", selection: $settings.departureBufferMinutes) {
+              ForEach(AppSettings.departureBufferOptions, id: \.self) { minutes in
+                Text(minutes == 0 ? "なし" : "\(minutes)分").tag(minutes)
+              }
+            }
+          }
+        } header: {
+          Text("出発リマインダー")
+        } footer: {
+          Text("今いる場所から次の講義棟までの徒歩時間を逆算し，出発すべき時刻に通知します．余裕時間を足すと，その分だけ早めに通知します．")
+        }
+
+        // 通知が許可されていない場合の案内
+        if isNotificationBlocked {
+          Section {
+            Button("通知を許可する") {
+              openAppSettings()
+            }
+          } footer: {
+            Text("通知がオフになっています．リマインダーを受け取るには，設定アプリから通知を許可してください．")
+          }
+        }
+      }
+      .navigationTitle("設定")
+    }
+    .task {
+      await notifications.refreshAuthorizationStatus()
+    }
+    .onChange(of: settings.enableClassReminder) { _, isOn in
+      if isOn {
+        Task { await requestAuthorizationIfNeeded() }
+      }
+    }
+    .onChange(of: settings.enableDepartureReminder) { _, isOn in
+      if isOn {
+        Task { await requestAuthorizationIfNeeded() }
+      }
+    }
+    .preferredColorScheme(.dark)
+  }
+
+  // MARK: - Private
+
+  /// いずれかの通知がオンなのに許可が拒否されている状態か
+  private var isNotificationBlocked: Bool {
+    let wantsNotification = settings.enableClassReminder || settings.enableDepartureReminder
+    return wantsNotification && notifications.authorizationStatus == .denied
+  }
+
+  /// 通知が未許可なら許可をリクエストする
+  private func requestAuthorizationIfNeeded() async {
+    if notifications.authorizationStatus == .notDetermined {
+      await notifications.requestAuthorization()
+    } else {
+      await notifications.refreshAuthorizationStatus()
+    }
+  }
+
+  /// 本アプリの設定画面（通知許可）を開く
+  private func openAppSettings() {
+    guard
+      let settingsUrl = URL(string: UIApplication.openSettingsURLString),
+      UIApplication.shared.canOpenURL(settingsUrl)
+    else {
+      return
+    }
+    UIApplication.shared.open(settingsUrl)
+  }
+}
+
+#Preview {
+  SettingsView()
+    .environment(AppSettings())
+    .environment(NotificationService())
+}

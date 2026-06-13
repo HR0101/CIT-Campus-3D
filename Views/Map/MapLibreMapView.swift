@@ -41,11 +41,11 @@ struct MapLibreMapView: UIViewRepresentable {
     /// カメラ移動アニメーションの秒数
     static let cameraAnimationDuration: TimeInterval = 1.2
     /// 周辺市街ビルの色（ベース地図に馴染む暗いグレー）
-    static let cityBuildingColor = UIColor(white: 0.30, alpha: 1.0)
+    static let cityBuildingColor = UIColor(white: 0.24, alpha: 1.0)
     /// 周辺市街ビルの不透明度（透過すると視認性が落ちるため完全不透明にする）
     static let cityBuildingOpacity: Float = 1.0
     /// キャンパス棟の色（市街よりわずかに明るいグレーで控えめに区別する）
-    static let campusBuildingColor = UIColor(white: 0.42, alpha: 1.0)
+    static let campusBuildingColor = UIColor(white: 0.34, alpha: 1.0)
     /// キャンパス棟の不透明度（完全不透明）
     static let campusBuildingOpacity: Float = 1.0
     /// 経路線の色
@@ -69,12 +69,8 @@ struct MapLibreMapView: UIViewRepresentable {
     mapView.showsUserLocation = true
     context.coordinator.mapView = mapView
 
-    // 初期カメラ（アニメーションなしで即適用）
-    if let command = cameraCommand {
-      mapView.setCamera(Coordinator.makeCamera(from: command), animated: false)
-      context.coordinator.markCameraApplied(command)
-    }
-
+    // カメラはビューのサイズ確定前に設定しても効かないため，
+    // マップ読み込み完了後にCoordinatorが保留分を適用する
     context.coordinator.apply(
       destination: destinationBuilding,
       route: route,
@@ -112,6 +108,9 @@ extension MapLibreMapView {
     /// 適用済みのカメラ指示ID（二重適用の防止）
     private var appliedCameraCommandID: UUID?
 
+    /// マップ読み込み前に受け取ったカメラ指示の退避先
+    private var pendingCameraCommand: CameraCommand?
+
     /// 表示済みの経路（オブジェクト同一性で差分判定）
     private var appliedRoute: MKRoute?
 
@@ -143,11 +142,6 @@ extension MapLibreMapView {
       applyAnnotations(destination: destination)
     }
 
-    /// カメラ指示を適用済みとして記録する（初期カメラ用）
-    func markCameraApplied(_ command: CameraCommand) {
-      appliedCameraCommandID = command.id
-    }
-
     /// CameraCommandからMapLibreのカメラを生成する
     static func makeCamera(from command: CameraCommand) -> MLNMapCamera {
       // MapKitのdistance（視線方向の距離）をMapLibreのaltitude（高度）へ換算する
@@ -176,6 +170,12 @@ extension MapLibreMapView {
         appliedRoute = nil
         applyRoute(pendingRoute)
       }
+      // 保留中のカメラ指示を即時適用する（初期表示用）
+      if let pendingCameraCommand, let mapView {
+        self.pendingCameraCommand = nil
+        appliedCameraCommandID = pendingCameraCommand.id
+        mapView.setCamera(Self.makeCamera(from: pendingCameraCommand), animated: false)
+      }
     }
 
     // MARK: - Private（レイヤ構築）
@@ -197,9 +197,11 @@ extension MapLibreMapView {
         forConstantValue: MapConstants.cityBuildingOpacity
       )
 
-      // ラベル（シンボルレイヤ）の下に挿入して地名の視認性を保つ
-      if let firstSymbolLayer = style.layers.first(where: { $0 is MLNSymbolStyleLayer }) {
-        style.insertLayer(layer, below: firstSymbolLayer)
+      // 道路・線路など全ジオメトリの上，ラベルの下に挿入する．
+      // （OpenFreeMapのdarkスタイルは道路・線路レイヤがsymbolより後ろにあるため，
+      // 「最初のsymbolの下」に入れると線がビルを貫通して透過したように見える）
+      if let lastGeometryLayer = style.layers.last(where: { !($0 is MLNSymbolStyleLayer) }) {
+        style.insertLayer(layer, above: lastGeometryLayer)
       } else {
         style.addLayer(layer)
       }
@@ -222,12 +224,14 @@ extension MapLibreMapView {
 
       // 各ポリゴンへ高さを付与する．
       // GeoJSON側にheightが明示されていればそれを優先し（複合形状の低層部など），
-      // なければマスタの高さ（heightMeters）を使う
+      // なければキャンパス＋棟名でマスタの高さ（heightMeters）を引く
       for case let polygon as MLNPolygonFeature in collection.shapes {
         let name = polygon.attribute(forKey: "name") as? String ?? ""
+        let campusKey = polygon.attribute(forKey: "campus") as? String ?? ""
+        let campus = Campus(geoJSONKey: campusKey) ?? .tsudanuma
         let explicitHeight = polygon.attribute(forKey: "height") as? Double
         let height = explicitHeight
-          ?? CampusBuilding.building(named: name)?.heightMeters
+          ?? CampusBuilding.building(named: name, campus: campus)?.heightMeters
           ?? 0
         var attributes = polygon.attributes
         attributes["height"] = height
@@ -284,6 +288,11 @@ extension MapLibreMapView {
       else {
         return
       }
+      // マップ読み込み前はビューのサイズが未確定でカメラ計算が効かないため退避する
+      guard isStyleLoaded else {
+        pendingCameraCommand = command
+        return
+      }
       appliedCameraCommandID = command.id
       mapView.fly(
         to: Self.makeCamera(from: command),
@@ -330,7 +339,7 @@ extension MapLibreMapView {
       hasAddedAnnotations = true
 
       mapView.removeAnnotations(buildingAnnotations)
-      buildingAnnotations = CampusBuilding.tsudanumaBuildings.map { building in
+      buildingAnnotations = CampusBuilding.allBuildings.map { building in
         let annotation = CampusPointAnnotation()
         annotation.coordinate = building.coordinate
         annotation.building = building

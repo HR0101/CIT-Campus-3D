@@ -4,28 +4,37 @@
 //
 //  3Dキャンパスマップ画面（MapLibre＋OSMベース）．
 //  「次の授業」の講義棟を目的地として，現在地からの徒歩経路をpitch付き3D視点で描画する．
-//  キャンパス8棟はOSM実測の外形＋自前の高さデータで高忠実に押し出し表示される．
+//  「大学周辺でのみ経路を表示」設定が有効な場合，範囲外では経路を描かない．
 //
 
+import CoreLocation
 import SwiftUI
 import UIKit
 
 /// 3Dマップとナビゲーション状態を統合した画面
 struct CampusMapView: View {
 
+  /// 現在地サービス（ContentViewが所有し，注入する）
+  let locationService: LocationService
+
   /// 目的地の講義棟（次の授業の講義棟．不明な場合はnil）
-  private let destinationBuilding: CampusBuilding?
+  let destinationBuilding: CampusBuilding?
 
   /// 次の授業の判定結果（登録授業がない場合はnil）
-  private let nextLecture: NextLectureResult?
+  let nextLecture: NextLectureResult?
 
-  /// 現在地サービス（画面の生存期間と同じライフサイクル）
-  @State private var locationService = LocationService()
+  /// ユーザー設定（経路表示の制限）
+  @Environment(AppSettings.self) private var settings
 
   /// マップ状態のViewModel
   @State private var viewModel: CampusMapViewModel
 
-  init(destinationBuilding: CampusBuilding?, nextLecture: NextLectureResult?) {
+  init(
+    locationService: LocationService,
+    destinationBuilding: CampusBuilding?,
+    nextLecture: NextLectureResult?
+  ) {
+    self.locationService = locationService
     self.destinationBuilding = destinationBuilding
     self.nextLecture = nextLecture
     _viewModel = State(initialValue: CampusMapViewModel(destinationBuilding: destinationBuilding))
@@ -49,24 +58,38 @@ struct CampusMapView: View {
         .padding(.trailing)
         .padding(.bottom, 56)
     }
-    .onAppear {
-      locationService.startUpdating()
-    }
-    .onDisappear {
-      locationService.stopUpdating()
+    .task {
+      // 初回表示時に現在状態で経路表示を評価する
+      await viewModel.refreshRoute(
+        currentLocation: locationService.currentLocation,
+        restrictToCampus: settings.restrictRouteToCampus
+      )
     }
     .onChange(of: locationService.currentLocation) { _, newLocation in
-      // 現在地が確定したタイミングで経路探索を自動開始する
+      // 現在地が更新されるたびに経路表示（と大学周辺判定）を更新する
       Task {
-        await viewModel.handleLocationUpdate(newLocation)
+        await viewModel.refreshRoute(
+          currentLocation: newLocation,
+          restrictToCampus: settings.restrictRouteToCampus
+        )
       }
     }
     .onChange(of: destinationBuilding?.id) { _, _ in
       // 「次の授業」が変わったら目的地と経路を更新する
+      viewModel.setDestination(destinationBuilding)
       Task {
-        await viewModel.updateDestination(
-          destinationBuilding,
-          currentLocation: locationService.currentLocation
+        await viewModel.refreshRoute(
+          currentLocation: locationService.currentLocation,
+          restrictToCampus: settings.restrictRouteToCampus
+        )
+      }
+    }
+    .onChange(of: settings.restrictRouteToCampus) { _, newValue in
+      // 「大学周辺でのみ表示」設定の切り替えを即時反映する
+      Task {
+        await viewModel.refreshRoute(
+          currentLocation: locationService.currentLocation,
+          restrictToCampus: newValue
         )
       }
     }
@@ -170,19 +193,47 @@ struct CampusMapView: View {
         actionTitle: "再試行",
         action: {
           Task {
-            await viewModel.retryRoute(from: locationService.currentLocation)
+            await viewModel.retryRoute(
+              currentLocation: locationService.currentLocation,
+              restrictToCampus: settings.restrictRouteToCampus
+            )
           }
         }
       )
     case .showingRoute:
       if let route = viewModel.route, let building = viewModel.destinationBuilding {
-        RouteSummaryCard(destinationName: building.name, route: route)
+        RouteSummaryCard(destinationName: building.displayName, route: route)
       }
+    case .outsideCampus:
+      outsideCampusBanner
     case .waitingForLocation:
       ProgressBanner(message: "現在地の確定を待っています…")
     case .idle:
       EmptyView()
     }
+  }
+
+  /// 大学の周辺ではないことを伝えるバナー（距離も表示する）
+  @ViewBuilder
+  private var outsideCampusBanner: some View {
+    let message: String = {
+      guard
+        let building = viewModel.destinationBuilding,
+        let location = locationService.currentLocation
+      else {
+        return "大学の周辺に入ると経路を表示します．"
+      }
+      let distanceKm = building.campus.distanceMeters(from: location.coordinate) / 1_000
+      return String(
+        format: "%@キャンパスまで約%.1fkm．周辺に入ると経路を表示します．",
+        building.campus.displayName, distanceKm
+      )
+    }()
+    StatusBanner(
+      systemImageName: "figure.walk.circle",
+      message: message,
+      accentColor: .cyan
+    )
   }
 
   // MARK: - Private
@@ -200,5 +251,10 @@ struct CampusMapView: View {
 }
 
 #Preview {
-  CampusMapView(destinationBuilding: .building2, nextLecture: nil)
+  CampusMapView(
+    locationService: LocationService(),
+    destinationBuilding: .building2,
+    nextLecture: nil
+  )
+  .environment(AppSettings())
 }

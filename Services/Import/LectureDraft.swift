@@ -21,6 +21,8 @@ struct LectureDraft: Identifiable, Hashable {
   let subjectName: String
   /// 教員名
   let teacherName: String
+  /// キャンパス（場所表記から判別）
+  let campus: Campus
   /// 講義棟名（教室番号から推定．不明の場合は空文字）
   let buildingName: String
   /// 教室番号（例: 731．不明の場合は空文字）
@@ -34,6 +36,7 @@ struct LectureDraft: Identifiable, Hashable {
       period: period,
       subjectName: subjectName,
       teacherName: teacherName,
+      campus: campus,
       buildingName: buildingName,
       roomNumber: roomNumber
     )
@@ -49,6 +52,7 @@ enum LectureCellParser {
   struct ParsedCell {
     let subjectName: String
     let teacherName: String
+    let campus: Campus
     let buildingName: String
     let roomNumber: String
   }
@@ -90,12 +94,15 @@ enum LectureCellParser {
     let subjectName = cleanSubjectName(rawSubjectName)
     guard !subjectName.isEmpty else { return nil }
 
+    // 場所表記（例: ７３１講義室／津田沼キャンパス）からキャンパスと講義棟を判別する
+    let campus = Campus.detect(fromLocationText: locationText)
     let roomNumber = extractRoomNumber(from: locationText)
-    let buildingName = CampusBuilding.building(forRoomNumber: roomNumber)?.name ?? ""
+    let buildingName = CampusBuilding.building(forRoomNumber: roomNumber, campus: campus)?.name ?? ""
 
     return ParsedCell(
       subjectName: subjectName,
       teacherName: teacherName,
+      campus: campus,
       buildingName: buildingName,
       roomNumber: roomNumber
     )
