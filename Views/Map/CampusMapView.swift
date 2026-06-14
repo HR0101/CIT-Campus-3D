@@ -23,6 +23,12 @@ struct CampusMapView: View {
   /// 次の授業の判定結果（登録授業がない場合はnil）
   let nextLecture: NextLectureResult?
 
+  /// 次の授業が無いときに表示するメッセージ（学年暦を考慮済み）
+  let emptyStateMessage: String
+
+  /// 本日が休講日のときの注意文（無ければnil）
+  let todayClosureNote: String?
+
   /// ユーザー設定（経路表示の制限）
   @Environment(AppSettings.self) private var settings
 
@@ -32,11 +38,15 @@ struct CampusMapView: View {
   init(
     locationService: LocationService,
     destinationBuilding: CampusBuilding?,
-    nextLecture: NextLectureResult?
+    nextLecture: NextLectureResult?,
+    emptyStateMessage: String,
+    todayClosureNote: String?
   ) {
     self.locationService = locationService
     self.destinationBuilding = destinationBuilding
     self.nextLecture = nextLecture
+    self.emptyStateMessage = emptyStateMessage
+    self.todayClosureNote = todayClosureNote
     _viewModel = State(initialValue: CampusMapViewModel(destinationBuilding: destinationBuilding))
   }
 
@@ -125,9 +135,18 @@ struct CampusMapView: View {
     }
   }
 
-  /// 次の授業の情報カード（未登録時は案内バナー）
+  /// 次の授業の情報カード（未登録・休講・期間外は案内バナー）
   @ViewBuilder
   private var nextLectureBanner: some View {
+    // 本日が休講日のときは，次の授業の有無にかかわらず注意文を出す
+    if let todayClosureNote {
+      StatusBanner(
+        systemImageName: "calendar.badge.minus",
+        message: todayClosureNote,
+        accentColor: .cyan
+      )
+    }
+
     if let nextLecture {
       NextLectureCard(result: nextLecture)
       if destinationBuilding == nil {
@@ -140,7 +159,7 @@ struct CampusMapView: View {
     } else {
       StatusBanner(
         systemImageName: "calendar.badge.exclamationmark",
-        message: "今後1週間の授業が見つかりません．時間割タブからインポートまたは追加してください．",
+        message: emptyStateMessage,
         accentColor: .cyan
       )
     }
@@ -254,7 +273,9 @@ struct CampusMapView: View {
   CampusMapView(
     locationService: LocationService(),
     destinationBuilding: .building2,
-    nextLecture: nil
+    nextLecture: nil,
+    emptyStateMessage: "時間割が未登録です．",
+    todayClosureNote: nil
   )
   .environment(AppSettings())
 }

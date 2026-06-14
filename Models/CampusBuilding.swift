@@ -70,24 +70,24 @@ extension CampusBuilding {
   static let building2 = CampusBuilding(
     id: "bldg-2", campus: .tsudanuma, name: "2号館",
     latitude: 35.68812680741046, longitude: 140.02013459558546,
-    heightMeters: 75
+    heightMeters: 80  // タワー部=地上20階（1号館と同等）
   )
   static let building3 = CampusBuilding(
     id: "bldg-3", campus: .tsudanuma, name: "3号館",
     latitude: 35.688425626788934, longitude: 140.0216374382655,
-    heightMeters: 20,
+    heightMeters: 8,  // 地上2階
     facilityNote: "食堂・購買"
   )
   static let building4 = CampusBuilding(
     id: "bldg-4", campus: .tsudanuma, name: "4号館",
     latitude: 35.68825243815841, longitude: 140.02105162021704,
-    heightMeters: 15,
+    heightMeters: 36,  // 地上9階
     facilityNote: "部室棟"
   )
   static let building5 = CampusBuilding(
     id: "bldg-5", campus: .tsudanuma, name: "5号館",
     latitude: 35.68991717704099, longitude: 140.02067560458983,
-    heightMeters: 35,
+    heightMeters: 28,  // 少なくとも地上7階
     facilityNote: "図書館"
   )
   static let building6 = CampusBuilding(
@@ -98,7 +98,7 @@ extension CampusBuilding {
   static let building7 = CampusBuilding(
     id: "bldg-7", campus: .tsudanuma, name: "7号館",
     latitude: 35.68878154618239, longitude: 140.02177066212877,
-    heightMeters: 50
+    heightMeters: 36  // 地上9階
   )
   static let building8 = CampusBuilding(
     id: "bldg-8", campus: .tsudanuma, name: "8号館",
@@ -127,7 +127,7 @@ extension CampusBuilding {
   static let snBuilding2 = CampusBuilding(
     id: "sn-bldg-2", campus: .shinNarashino, name: "2号館",
     latitude: 35.6622836, longitude: 140.0142846,
-    heightMeters: 16  // 推定
+    heightMeters: 36  // 地上9階
   )
   static let snBuilding3 = CampusBuilding(
     id: "sn-bldg-3", campus: .shinNarashino, name: "3号館",
@@ -144,7 +144,7 @@ extension CampusBuilding {
   static let snBuilding6 = CampusBuilding(
     id: "sn-bldg-6", campus: .shinNarashino, name: "6号館",
     latitude: 35.6618197, longitude: 140.015155,
-    heightMeters: 20,  // 推定
+    heightMeters: 10,  // 2階（図書館・天井高めを考慮）
     facilityNote: "図書館"
   )
   static let snBuilding7 = CampusBuilding(
@@ -161,12 +161,12 @@ extension CampusBuilding {
   static let snBuilding9 = CampusBuilding(
     id: "sn-bldg-9", campus: .shinNarashino, name: "9号館",
     latitude: 35.6612553, longitude: 140.0150201,
-    heightMeters: 15  // 推定
+    heightMeters: 9  // 地上2階
   )
   static let snBuilding10 = CampusBuilding(
     id: "sn-bldg-10", campus: .shinNarashino, name: "10号館",
     latitude: 35.6608317, longitude: 140.0145554,
-    heightMeters: 15  // 推定
+    heightMeters: 9  // 地上2階
   )
   static let snBuilding11 = CampusBuilding(
     id: "sn-bldg-11", campus: .shinNarashino, name: "11号館",

@@ -20,6 +20,19 @@ struct SettingsView: View {
 
     NavigationStack {
       Form {
+        // スケジュール
+        Section {
+          NavigationLink {
+            AcademicCalendarView()
+          } label: {
+            Label("\(AcademicCalendar.current.academicYear)年度 学年暦", systemImage: "calendar")
+          }
+        } header: {
+          Text("スケジュール")
+        } footer: {
+          Text("登録済みの授業期間・休講日です．「次の授業」の判定はこの学年暦に従い，休講日や長期休業中は授業を表示しません．")
+        }
+
         // 経路表示
         Section {
           Toggle("大学周辺でのみ経路を表示", isOn: $settings.restrictRouteToCampus)

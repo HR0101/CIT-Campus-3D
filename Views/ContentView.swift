@@ -35,13 +35,18 @@ struct ContentView: View {
     TimelineView(.everyMinute) { context in
       let upcoming = resolver.resolveUpcoming(from: lectures, now: context.date)
       let nextLecture = upcoming.first
+      let scheduleStatus = AcademicCalendar.current.scheduleStatus(
+        on: context.date, calendar: .current
+      )
 
       TabView {
         Tab("マップ", systemImage: "map.fill") {
           CampusMapView(
             locationService: locationService,
             destinationBuilding: nextLecture?.lecture.building,
-            nextLecture: nextLecture
+            nextLecture: nextLecture,
+            emptyStateMessage: emptyLectureMessage(status: scheduleStatus),
+            todayClosureNote: todayClosureNote(status: scheduleStatus)
           )
         }
         Tab("時間割", systemImage: "calendar") {
@@ -75,6 +80,35 @@ struct ContentView: View {
         break
       }
     }
+  }
+
+  // MARK: - 学年暦に応じたメッセージ
+
+  /// 次の授業が無いときに表示するメッセージ（学年暦の状態を考慮する）
+  private func emptyLectureMessage(status: AcademicCalendar.ScheduleStatus) -> String {
+    // 時間割そのものが未登録の場合はインポートを促す
+    if lectures.isEmpty {
+      return "時間割が未登録です．時間割タブからインポートまたは追加してください．"
+    }
+    switch status {
+    case .breakUntil(let nextSemester, let startKey):
+      let dateText = AcademicCalendar.monthDayText(fromKey: startKey)
+      return "現在は授業期間外です．\(nextSemester.displayName)は\(dateText)から始まります．"
+    case .afterAllTerms:
+      return "本年度の授業はすべて終了しました．"
+    case .closureDay(let reason):
+      return "本日は休講です（\(reason)）．今週これからの授業はありません．"
+    case .classDay, .unknownYear:
+      return "今後1週間の授業が見つかりません．"
+    }
+  }
+
+  /// 本日が休講日のときの注意文（授業実施日・期間外ならnil）
+  private func todayClosureNote(status: AcademicCalendar.ScheduleStatus) -> String? {
+    if case .closureDay(let reason) = status {
+      return "本日は休講です（\(reason)）"
+    }
+    return nil
   }
 
   // MARK: - 通知の予約

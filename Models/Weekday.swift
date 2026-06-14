@@ -33,8 +33,9 @@ enum Weekday: Int, CaseIterable, Identifiable, Codable, Hashable {
     }
   }
 
-  /// 授業が開講される曜日（月〜土）
+  /// 授業が開講される曜日（月〜金）．
+  /// 土日は基本的に授業がないため除外する（土曜の振替授業が必要になれば .saturday を追加する）
   static let lectureDays: [Weekday] = [
-    .monday, .tuesday, .wednesday, .thursday, .friday, .saturday,
+    .monday, .tuesday, .wednesday, .thursday, .friday,
   ]
 }
