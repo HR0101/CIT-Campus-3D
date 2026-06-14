@@ -100,6 +100,9 @@ final class NotificationService {
     now: Date
   ) {
     let offsetSeconds = Double(offsetMinutes) * 60
+    // 通知は「開始の offsetMinutes 前」に飛ぶため，発火時点の残り時間は設定値と一致する．
+    // それを「あと何分か」としてそのまま本文に使う（0分以下なら「まもなく」とする）
+    let startsInText = offsetMinutes > 0 ? "約\(offsetMinutes)分後" : "まもなく"
     for (index, result) in upcoming.prefix(NotificationConstants.maxClassReminders).enumerated() {
       let fireDate = result.startDate.addingTimeInterval(-offsetSeconds)
       // 通知時刻がすでに過ぎている授業はスキップする
@@ -107,7 +110,7 @@ final class NotificationService {
 
       let periodName = result.lecture.classPeriod?.displayName ?? "\(result.lecture.period)限"
       let dayText = result.isToday ? "今日" : "\(result.lecture.weekday.shortName)曜"
-      let body = "\(dayText) \(periodName)「\(result.lecture.subjectName)」（\(result.lecture.placeText)）がまもなく始まります．"
+      let body = "\(dayText) \(periodName)「\(result.lecture.subjectName)」（\(result.lecture.placeText)）が\(startsInText)始まります．"
 
       scheduleNotification(
         identifier: "\(NotificationConstants.classReminderPrefix)\(index)",
