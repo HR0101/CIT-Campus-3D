@@ -126,7 +126,6 @@ struct AddLectureView: View {
           .first { $0.campus == newCampus }?.name ?? ""
       }
     }
-    .preferredColorScheme(.dark)
   }
 
   // MARK: - Private

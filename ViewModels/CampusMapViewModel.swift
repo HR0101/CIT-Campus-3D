@@ -79,12 +79,20 @@ final class CampusMapViewModel {
     static let initialDistance: CLLocationDistance = 1_200
     /// 3D視点の傾き（度）．60°でビルの立体感が出る
     static let pitchDegrees: CGFloat = 60
-    /// 経路表示時，経路長に対してどれだけ引いた視点にするかの倍率
-    static let routeDistanceMultiplier: Double = 2.2
+    /// 経路表示時，出発地〜目的地の直線距離に対してどれだけ引いた視点にするかの倍率
+    /// （迂回経路でも両端が画面内に収まるよう余裕を持たせる）
+    static let routeDistanceMultiplier: Double = 2.4
     /// 経路が極端に短い場合でも確保するカメラ距離（メートル）
     static let minimumRouteCameraDistance: CLLocationDistance = 400
     /// 現在地フォーカス時のカメラ距離（メートル）
     static let userFocusDistance: CLLocationDistance = 500
+  }
+
+  /// 経路の再計算に関する定数
+  private enum RouteConstants {
+    /// 経路を再計算する出発地の移動しきい値（メートル．これ未満の移動では再計算しない）．
+    /// 5m間隔の位置更新ごとに毎回MKDirectionsを呼ばないための間引き
+    static let recalculationThresholdMeters: CLLocationDistance = 75
   }
 
   /// マップへのカメラ移動指示（MapLibreビューが監視する）
@@ -92,6 +100,15 @@ final class CampusMapViewModel {
 
   /// 探索済みの徒歩経路
   private(set) var route: MKRoute?
+
+  /// 現在表示中の経路を計算したときの出発地（移動量に応じた再計算の判定に使う）
+  private var routeSourceCoordinate: CLLocationCoordinate2D?
+
+  /// 経路計算（MKDirections）が進行中か．多重実行の防止に使う（表示phaseとは独立）
+  private var isCalculatingRoute = false
+
+  /// 計算中に届いた最新のリフレッシュ要求（完了後に1回だけ再評価し，取りこぼしを防ぐ）
+  private var pendingRefresh: (location: CLLocation?, restrictToCampus: Bool)?
 
   /// 現在の進行フェーズ
   private(set) var phase: NavigationPhase = .idle
@@ -119,9 +136,11 @@ final class CampusMapViewModel {
     guard building?.id != destinationBuilding?.id else { return }
     destinationBuilding = building
     route = nil
-    if building == nil {
-      phase = .idle
-    }
+    routeSourceCoordinate = nil
+    pendingRefresh = nil
+    // 計算中に目的地が変わっても進行表示（探索中バナー）が残らないよう初期化する．
+    // この直後にrefreshRouteが呼ばれ，新しい目的地で正しいphaseに再評価される
+    phase = .idle
   }
 
   /// 現在地・設定をもとに，経路の表示状態を更新する．
@@ -130,9 +149,16 @@ final class CampusMapViewModel {
   ///   - currentLocation: 現在地（未取得ならnil）
   ///   - restrictToCampus: 大学周辺でのみ経路を表示する設定
   func refreshRoute(currentLocation: CLLocation?, restrictToCampus: Bool) async {
+    // 経路計算中に来た要求は最新の1件だけ退避し，完了後に再評価する（取りこぼし防止）
+    if isCalculatingRoute {
+      pendingRefresh = (currentLocation, restrictToCampus)
+      return
+    }
+
     // 目的地が未定なら何も表示しない
     guard let building = destinationBuilding else {
       route = nil
+      routeSourceCoordinate = nil
       phase = .idle
       return
     }
@@ -151,22 +177,33 @@ final class CampusMapViewModel {
     guard isWithinCampus else {
       // 範囲外では経路を出さない
       route = nil
+      routeSourceCoordinate = nil
       phase = .outsideCampus
       return
     }
 
-    // 範囲内: 経路が未取得なら探索する（探索済みならそのまま表示を続ける）
-    if route == nil {
-      guard phase != .calculatingRoute else { return }
+    // 範囲内: 経路が未取得なら探索する．
+    // 取得済みでも，出発地から十分移動したらETA・経路を更新する（歩行中の鮮度維持）
+    if route == nil || hasMovedEnoughToRecalculate(from: location.coordinate) {
       await calculateRoute(from: location.coordinate, to: building)
     } else {
       phase = .showingRoute
     }
   }
 
+  /// 表示中の経路の出発地から，再計算しきい値を超えて移動したか
+  private func hasMovedEnoughToRecalculate(from coordinate: CLLocationCoordinate2D) -> Bool {
+    guard let source = routeSourceCoordinate else { return true }
+    let from = CLLocation(latitude: source.latitude, longitude: source.longitude)
+    let to = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+    return from.distance(from: to) > RouteConstants.recalculationThresholdMeters
+  }
+
   /// 経路探索を再試行する（エラーバナーのリトライ用）
   func retryRoute(currentLocation: CLLocation?, restrictToCampus: Bool) async {
     route = nil
+    routeSourceCoordinate = nil
+    pendingRefresh = nil
     await refreshRoute(currentLocation: currentLocation, restrictToCampus: restrictToCampus)
   }
 
@@ -195,41 +232,67 @@ final class CampusMapViewModel {
 
   /// 徒歩経路を探索し，成功したらカメラを経路全体へ移動する
   private func calculateRoute(from source: CLLocationCoordinate2D, to building: CampusBuilding) async {
-    phase = .calculatingRoute
+    // 既存経路の更新（歩行中の再計算）か，初回探索かを区別する．
+    // 再計算中は探索バナーを出さず既存のカード・経路を表示し続け，カメラも動かさない
+    let isRecompute = route != nil
+    isCalculatingRoute = true
+    if !isRecompute {
+      phase = .calculatingRoute
+    }
+
     do {
       let walkingRoute = try await routeService.calculateWalkingRoute(
         from: source,
         to: building.coordinate
       )
-      // 探索中に目的地が変わっていた場合は結果を破棄する
-      guard building.id == destinationBuilding?.id else { return }
-      route = walkingRoute
-      phase = .showingRoute
-      moveCameraToRoute(
-        from: source,
-        to: building.coordinate,
-        routeDistance: walkingRoute.distance
-      )
+      // 探索中に目的地が変わっていなければ結果を反映する（変わっていれば破棄）
+      if building.id == destinationBuilding?.id {
+        route = walkingRoute
+        routeSourceCoordinate = source
+        phase = .showingRoute
+        if !isRecompute {
+          moveCameraToRoute(from: source, to: building.coordinate)
+        }
+      }
     } catch {
-      guard building.id == destinationBuilding?.id else { return }
-      route = nil
-      phase = .failed(message: error.localizedDescription)
+      if building.id == destinationBuilding?.id {
+        if isRecompute {
+          // 再計算の失敗は既存経路を残す（一時的な失敗で表示を壊さない）
+          phase = .showingRoute
+        } else {
+          route = nil
+          routeSourceCoordinate = nil
+          phase = .failed(message: error.localizedDescription)
+        }
+      }
+    }
+
+    isCalculatingRoute = false
+    // 計算中に届いた最新のリフレッシュ要求を1回だけ再評価する（目的地変更・移動の取りこぼし防止）
+    if let pending = pendingRefresh {
+      pendingRefresh = nil
+      await refreshRoute(currentLocation: pending.location, restrictToCampus: pending.restrictToCampus)
     }
   }
 
   /// 出発地と目的地の中間にカメラを移し，進行方向を向いた3D視点にする
   private func moveCameraToRoute(
     from source: CLLocationCoordinate2D,
-    to destination: CLLocationCoordinate2D,
-    routeDistance: CLLocationDistance
+    to destination: CLLocationCoordinate2D
   ) {
     let centerCoordinate = CLLocationCoordinate2D(
       latitude: (source.latitude + destination.latitude) / 2,
       longitude: (source.longitude + destination.longitude) / 2
     )
+    // ズームは出発地〜目的地の直線距離（実際にフレームへ収める範囲）で決める．
+    // 経路長（迂回で直線の1.5〜2倍になりうる）を使うと引きすぎて両端が小さくなるため
+    let span = CLLocation(latitude: source.latitude, longitude: source.longitude)
+      .distance(
+        from: CLLocation(latitude: destination.latitude, longitude: destination.longitude)
+      )
     let cameraDistance = max(
       CameraConstants.minimumRouteCameraDistance,
-      routeDistance * CameraConstants.routeDistanceMultiplier
+      span * CameraConstants.routeDistanceMultiplier
     )
     cameraCommand = CameraCommand(
       center: centerCoordinate,

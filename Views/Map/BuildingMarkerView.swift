@@ -38,7 +38,8 @@ struct BuildingMarkerView: View {
       .frame(width: MarkerConstants.badgeSize, height: MarkerConstants.badgeSize)
       .background(Circle().fill(Color(white: 0.22)))
       .overlay(Circle().stroke(Color.cyan.opacity(0.6), lineWidth: MarkerConstants.strokeWidth))
-      .shadow(radius: MarkerConstants.shadowRadius)
+      // 明るいベース地図（positron）でも輪郭が沈まないよう定義された暗い影を付ける
+      .shadow(color: .black.opacity(0.45), radius: MarkerConstants.shadowRadius)
   }
 }
 
@@ -56,7 +57,9 @@ struct BuildingAnnotationView: View {
         .foregroundStyle(.white)
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
-        .background(Color.black.opacity(0.55), in: Capsule())
+        .background(Color.black.opacity(0.7), in: Capsule())
+        // 明るいベース地図でも縁が分かるよう細い境界線を足す
+        .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
     }
   }
 }

@@ -28,28 +28,58 @@ struct StatusBanner: View {
   /// アクションボタンの処理
   var action: (() -> Void)?
 
+  /// 文字サイズ設定（特大サイズではボタンを下段へ折り返す）
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
   var body: some View {
-    HStack(spacing: 12) {
-      Image(systemName: systemImageName)
-        .font(.system(size: BannerConstants.iconSize, weight: .semibold))
-        .foregroundStyle(accentColor)
-
-      Text(message)
-        .font(.footnote)
-        .foregroundStyle(.white)
-        .frame(maxWidth: .infinity, alignment: .leading)
-
-      if let actionTitle, let action {
-        Button(action: action) {
-          Text(actionTitle)
-            .font(.footnote.bold())
-            .foregroundStyle(accentColor)
+    Group {
+      if dynamicTypeSize.isAccessibilitySize, actionTitle != nil {
+        // 特大文字サイズ: メッセージとボタンが横で取り合って切れないよう縦に積む
+        VStack(alignment: .leading, spacing: 8) {
+          HStack(spacing: 12) {
+            iconView
+            messageView
+          }
+          actionButton
+        }
+      } else {
+        HStack(spacing: 12) {
+          iconView
+          messageView
+          actionButton
         }
       }
     }
     .padding()
     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: BannerConstants.cornerRadius))
-    .environment(\.colorScheme, .dark)
+  }
+
+  /// 先頭アイコン
+  private var iconView: some View {
+    Image(systemName: systemImageName)
+      .font(.system(size: BannerConstants.iconSize, weight: .semibold))
+      .foregroundStyle(accentColor)
+  }
+
+  /// メッセージ本文（常に全文を折り返して表示する）
+  private var messageView: some View {
+    Text(message)
+      .font(.footnote)
+      .foregroundStyle(.primary)
+      .fixedSize(horizontal: false, vertical: true)
+      .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  /// アクションボタン（タイトルと処理がある場合のみ）
+  @ViewBuilder
+  private var actionButton: some View {
+    if let actionTitle, let action {
+      Button(action: action) {
+        Text(actionTitle)
+          .font(.footnote.bold())
+          .foregroundStyle(accentColor)
+      }
+    }
   }
 }
 
@@ -71,12 +101,11 @@ struct ProgressBanner: View {
 
       Text(message)
         .font(.footnote)
-        .foregroundStyle(.white)
+        .foregroundStyle(.primary)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
     .padding()
     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: BannerConstants.cornerRadius))
-    .environment(\.colorScheme, .dark)
   }
 }
 

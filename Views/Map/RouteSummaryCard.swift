@@ -65,16 +65,19 @@ struct RouteSummaryCard: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(titleText)
           .font(.headline)
-          .foregroundStyle(.white)
+          .foregroundStyle(.primary)
+          .lineLimit(2)
+          .minimumScaleFactor(0.85)
         Text("\(travelTimeText)・\(distanceText)")
           .font(.subheadline)
           .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .minimumScaleFactor(0.85)
       }
 
       Spacer()
     }
     .padding()
     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: FormatConstants.cornerRadius))
-    .environment(\.colorScheme, .dark)
   }
 }

@@ -20,6 +20,19 @@ struct SettingsView: View {
 
     NavigationStack {
       Form {
+        // 外観
+        Section {
+          Picker("外観", selection: $settings.appearance) {
+            ForEach(AppearanceMode.allCases) { mode in
+              Text(mode.displayName).tag(mode)
+            }
+          }
+        } header: {
+          Text("外観")
+        } footer: {
+          Text("画面の配色を切り替えます．「システムに合わせる」を選ぶと，端末（スマホ）のダーク／ライト設定に自動で従います．3Dマップ画面は見やすさのため常にダーク表示です．")
+        }
+
         // スケジュール
         Section {
           NavigationLink {
@@ -100,7 +113,6 @@ struct SettingsView: View {
         Task { await requestAuthorizationIfNeeded() }
       }
     }
-    .preferredColorScheme(.dark)
   }
 
   // MARK: - Private

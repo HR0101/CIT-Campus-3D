@@ -61,17 +61,14 @@ struct ContentView: View {
         await rescheduleNotifications(upcoming: upcoming)
       }
     }
-    .onAppear {
-      locationService.startUpdating()
-    }
     .task {
       await prepareNotifications()
     }
     .onChange(of: scenePhase) { _, phase in
       switch phase {
       case .active:
-        // 復帰時に位置情報を再開し，通知許可状態を取り直す（設定アプリでの変更を反映）
-        locationService.startUpdating()
+        // 復帰時に通知許可状態を取り直す（設定アプリでの変更を反映）．
+        // 位置情報はマップタブのonAppearで開始するためここでは起動しない
         Task { await notifications.refreshAuthorizationStatus() }
       case .background:
         // バックグラウンドでは位置情報を止めてバッテリーを節約する

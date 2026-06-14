@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// データ保存領域の初期化失敗を伝える画面
 struct StorageErrorView: View {
@@ -36,7 +37,7 @@ struct StorageErrorView: View {
     }
     .padding(32)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(Color.black)
+    .background(Color(uiColor: .systemBackground))
   }
 }
 

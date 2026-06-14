@@ -2,7 +2,7 @@
 //  CIT_Campus_3DApp.swift
 //  CIT-Campus-3D
 //
-//  アプリのエントリポイント．SwiftDataコンテナの生成・共有サービスの注入・ダークモード固定を担う．
+//  アプリのエントリポイント．SwiftDataコンテナの生成・共有サービスの注入・外観設定の適用を担う．
 //  コンテナ生成に失敗した場合はクラッシュさせず，フォールバック画面を表示する．
 //
 
@@ -47,8 +47,9 @@ struct CIT_Campus_3DApp: App {
       // 共有サービスを全画面へ注入する
       .environment(appSettings)
       .environment(notificationService)
-      // ダークモード基調のデザイン要件のため，常にダーク表示に固定する
-      .preferredColorScheme(.dark)
+      // 外観設定（システム連動／ライト／ダーク）に従う．
+      // .systemのときはnilを渡して端末（スマホ）のダーク／ライト設定に自動で従う
+      .preferredColorScheme(appSettings.appearance.colorScheme)
     }
   }
 }

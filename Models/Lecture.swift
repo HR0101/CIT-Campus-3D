@@ -83,13 +83,19 @@ final class Lecture {
     ClassPeriod.period(number: period)
   }
 
-  /// 教室の階数（教室番号の2文字目から推定．例: 731→3階．判定できなければnil）
-  /// 千葉工大の教室番号は「1文字目＝棟番号，2文字目＝階」の規則に従っている
+  /// 教室の階数（教室番号の棟番号の次の桁から推定．例: 731→3階，1024（10号館）→2階．判定できなければnil）
+  /// 千葉工大の教室番号は「棟番号＋階＋部屋番号」の規則．棟番号は通常1桁だが，
+  /// 新習志野の10〜12号館は2桁のため，building(forRoomNumber:)と同じ規則で棟番号桁を読み飛ばす
   var floor: Int? {
-    let digits = roomNumber.compactMap { $0.wholeNumberValue }
-    guard digits.count >= 2 else { return nil }
-    let candidate = digits[1]
-    return candidate >= 1 ? candidate : nil
+    // 先頭から連続する数字（棟番号＋階＋部屋番号）を取り出す
+    let lead = String(roomNumber.drop(while: { !$0.isNumber }).prefix(while: { $0.isNumber }))
+    guard !lead.isEmpty else { return nil }
+    // 棟番号が2桁（実在する10〜12号館）ならその分，なければ1桁を棟番号として読み飛ばす
+    let prefixLength = (lead.count >= 2
+      && CampusBuilding.building(named: "\(lead.prefix(2))号館", campus: campus) != nil) ? 2 : 1
+    let rest = lead.dropFirst(prefixLength)
+    guard let floorDigit = rest.first?.wholeNumberValue, floorDigit >= 1 else { return nil }
+    return floorDigit
   }
 
   /// 建物入口（1階）から教室階まで階段で上るのにかかる推定時間（秒）．

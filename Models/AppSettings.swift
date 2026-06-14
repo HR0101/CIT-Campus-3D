@@ -8,14 +8,46 @@
 
 import Foundation
 import Observation
+import SwiftUI
 
-/// ユーザー設定（経路表示・通知）
+/// アプリの外観（カラースキーム）設定
+enum AppearanceMode: String, CaseIterable, Identifiable {
+  /// 端末（スマホ）の設定に自動で従う
+  case system
+  /// 常にライト表示
+  case light
+  /// 常にダーク表示
+  case dark
+
+  var id: String { rawValue }
+
+  /// 設定画面に表示する名称
+  var displayName: String {
+    switch self {
+    case .system: return "システムに合わせる"
+    case .light: return "ライト"
+    case .dark: return "ダーク"
+    }
+  }
+
+  /// SwiftUIへ渡すカラースキーム（systemはnil＝端末設定に従う）
+  var colorScheme: ColorScheme? {
+    switch self {
+    case .system: return nil
+    case .light: return .light
+    case .dark: return .dark
+    }
+  }
+}
+
+/// ユーザー設定（外観・経路表示・通知）
 @MainActor
 @Observable
 final class AppSettings {
 
   /// UserDefaultsのキー
   private enum Keys {
+    static let appearance = "settings.appearance"
     static let restrictRouteToCampus = "settings.restrictRouteToCampus"
     static let enableClassReminder = "settings.enableClassReminder"
     static let classReminderOffsetMinutes = "settings.classReminderOffsetMinutes"
@@ -25,6 +57,8 @@ final class AppSettings {
 
   /// 設定の初期値
   private enum DefaultValues {
+    /// 既定の外観は端末（スマホ）の設定に従う
+    static let appearance = AppearanceMode.system
     /// 既定で「大学周辺でのみ経路を表示」する（要件: 範囲外では経路を出さない）
     static let restrictRouteToCampus = true
     /// 既定で授業前リマインダーをオンにする
@@ -43,6 +77,11 @@ final class AppSettings {
   static let departureBufferOptions = [0, 5, 10, 15]
 
   private let store: UserDefaults
+
+  /// アプリの外観（システム連動／ライト／ダーク）
+  var appearance: AppearanceMode {
+    didSet { store.set(appearance.rawValue, forKey: Keys.appearance) }
+  }
 
   /// 大学周辺にいるときだけ経路を表示する
   var restrictRouteToCampus: Bool {
@@ -73,6 +112,7 @@ final class AppSettings {
     self.store = userDefaults
     // 既定値を登録してから読み出す（初回起動時も意図した既定値になる）
     userDefaults.register(defaults: [
+      Keys.appearance: DefaultValues.appearance.rawValue,
       Keys.restrictRouteToCampus: DefaultValues.restrictRouteToCampus,
       Keys.enableClassReminder: DefaultValues.enableClassReminder,
       Keys.classReminderOffsetMinutes: DefaultValues.classReminderOffsetMinutes,
@@ -80,6 +120,8 @@ final class AppSettings {
       Keys.departureBufferMinutes: DefaultValues.departureBufferMinutes,
     ])
     // init内の代入ではdidSetは呼ばれないため，二重書き込みは発生しない
+    self.appearance = AppearanceMode(rawValue: userDefaults.string(forKey: Keys.appearance) ?? "")
+      ?? DefaultValues.appearance
     self.restrictRouteToCampus = userDefaults.bool(forKey: Keys.restrictRouteToCampus)
     self.enableClassReminder = userDefaults.bool(forKey: Keys.enableClassReminder)
     self.classReminderOffsetMinutes = userDefaults.integer(forKey: Keys.classReminderOffsetMinutes)

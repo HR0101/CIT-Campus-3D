@@ -230,12 +230,23 @@ extension CampusBuilding {
     allBuildings.first { $0.campus == campus && $0.name == name }
   }
 
-  /// キャンパスと教室番号から講義棟を推定する（例: "731" → 7号館）
-  /// 時間割表の教室名は「先頭の数字＝棟番号」の規則に従っている
+  /// キャンパスと教室番号から講義棟を推定する（例: "731" → 7号館，"1024" → 10号館）
+  /// 時間割表の教室名は「先頭の数字＝棟番号」の規則に従う．
+  /// 新習志野には10〜12号館（2桁）があるため，存在する最長の棟番号を優先して採用する
   static func building(forRoomNumber roomNumber: String, campus: Campus) -> CampusBuilding? {
-    guard let firstDigit = roomNumber.first(where: { $0.isNumber }) else {
-      return nil
+    // 先頭から連続する数字を棟番号の候補として取り出す（例: "1024" → "1024"）
+    let leadingDigits = String(
+      roomNumber.drop(while: { !$0.isNumber }).prefix(while: { $0.isNumber })
+    )
+    guard !leadingDigits.isEmpty else { return nil }
+    // 2桁→1桁の順に「N号館」を探し，実在する最長の棟番号を採用する．
+    // （"1024"を"1号館"へ誤判定せず，10号館が実在すればそちらを選ぶ）
+    if leadingDigits.count >= 2 {
+      let twoDigitName = "\(leadingDigits.prefix(2))号館"
+      if let building = building(named: twoDigitName, campus: campus) {
+        return building
+      }
     }
-    return building(named: "\(firstDigit)号館", campus: campus)
+    return building(named: "\(leadingDigits.prefix(1))号館", campus: campus)
   }
 }

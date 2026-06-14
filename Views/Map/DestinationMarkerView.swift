@@ -29,6 +29,9 @@ struct DestinationMarkerView: View {
   /// パルスアニメーションの進行フラグ
   @State private var isPulsing = false
 
+  /// 視差効果を減らす設定（オン時はループアニメーションを止める）
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   var body: some View {
     ZStack {
       // 外側へ広がって消えるパルス
@@ -48,6 +51,8 @@ struct DestinationMarkerView: View {
         .shadow(color: .cyan.opacity(0.8), radius: MarkerConstants.glowRadius)
     }
     .onAppear {
+      // Reduce Motionが有効なときはループするパルスを止め，静止したピンのみで示す
+      guard !reduceMotion else { return }
       withAnimation(
         .easeOut(duration: MarkerConstants.pulseDuration)
         .repeatForever(autoreverses: false)

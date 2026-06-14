@@ -65,7 +65,6 @@ struct ImportPreviewView: View {
         }
       }
     }
-    .preferredColorScheme(.dark)
   }
 }
 

@@ -51,7 +51,9 @@ struct NextLectureCard: View {
 
       Text(result.lecture.subjectName)
         .font(.headline)
-        .foregroundStyle(.white)
+        .foregroundStyle(.primary)
+        .lineLimit(2)
+        .minimumScaleFactor(0.85)
 
       HStack(spacing: 12) {
         Label(result.lecture.placeText, systemImage: "building.2")
@@ -61,10 +63,10 @@ struct NextLectureCard: View {
       }
       .font(.caption)
       .foregroundStyle(.secondary)
+      .lineLimit(1)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding()
     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CardConstants.cornerRadius))
-    .environment(\.colorScheme, .dark)
   }
 }

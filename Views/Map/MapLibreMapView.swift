@@ -21,7 +21,15 @@ struct MapLibreMapView: UIViewRepresentable {
   /// スタイル・レイヤに関する定数
   enum MapConstants {
     /// OpenFreeMapのダークスタイル（APIキー不要・無料）
-    static let styleURL = URL(string: "https://tiles.openfreemap.org/styles/dark")
+    static let darkStyleURL = URL(string: "https://tiles.openfreemap.org/styles/dark")
+    /// OpenFreeMapのライトスタイル．positronはCarto Positron系統の低彩度な明るいグレー基調で，
+    /// 中立的な背景と控えめな道路色がfill-extrusionのビル塊と経路線を引き立てる（darkの明るい対応物）
+    static let lightStyleURL = URL(string: "https://tiles.openfreemap.org/styles/positron")
+
+    /// カラースキームに応じたベース地図スタイルURLを返す
+    static func styleURL(for colorScheme: ColorScheme) -> URL? {
+      colorScheme == .dark ? darkStyleURL : lightStyleURL
+    }
     /// タイル側ベクターソースのID（OpenFreeMapのスタイル定義に合わせる）
     static let vectorSourceID = "openmaptiles"
     /// タイル側のビルレイヤ名（OpenMapTilesスキーマ）
@@ -42,20 +50,31 @@ struct MapLibreMapView: UIViewRepresentable {
     static let campusGeoJSONName = "CampusBuildings"
     /// カメラ移動アニメーションの秒数
     static let cameraAnimationDuration: TimeInterval = 1.2
-    /// 周辺市街ビルの色（ベース地図に馴染む暗いグレー）
-    static let cityBuildingColor = UIColor(white: 0.24, alpha: 1.0)
+    // ベース地図の明暗に合わせて建物・経路の色を切り替える（ライト/ダークの2系統）．
+    // ダークは暗いグレー基調，ライトはpositronの淡い背景でも塊が分かる明るめのグレーにする．
+    // city/campusの明度差（≒0.10〜0.16）を両モードで保ち，市街とキャンパス棟を区別する．
+    /// 周辺市街ビルの色（ダーク: ベース地図に馴染む暗いグレー）
+    static let cityBuildingColorDark = UIColor(white: 0.24, alpha: 1.0)
+    /// 周辺市街ビルの色（ライト: 明るいグレー）
+    static let cityBuildingColorLight = UIColor(white: 0.78, alpha: 1.0)
     /// 周辺市街ビルの不透明度（透過すると視認性が落ちるため完全不透明にする）
     static let cityBuildingOpacity: Float = 1.0
-    /// キャンパス棟の色（市街よりわずかに明るいグレーで控えめに区別する）
-    static let campusBuildingColor = UIColor(white: 0.34, alpha: 1.0)
+    /// キャンパス棟の色（ダーク: 市街よりわずかに明るいグレーで区別）
+    static let campusBuildingColorDark = UIColor(white: 0.34, alpha: 1.0)
+    /// キャンパス棟の色（ライト: 市街よりやや暗いグレーで区別）
+    static let campusBuildingColorLight = UIColor(white: 0.62, alpha: 1.0)
     /// キャンパス棟の不透明度（完全不透明）
     static let campusBuildingOpacity: Float = 1.0
-    /// 運動場など平面施設の色（芝を思わせる落ち着いた緑）
-    static let groundColor = UIColor(red: 0.16, green: 0.32, blue: 0.22, alpha: 1.0)
+    /// 運動場など平面施設の色（ダーク: 芝を思わせる落ち着いた緑）
+    static let groundColorDark = UIColor(red: 0.16, green: 0.32, blue: 0.22, alpha: 1.0)
+    /// 運動場など平面施設の色（ライト: 淡い背景に馴染む明るめの緑）
+    static let groundColorLight = UIColor(red: 0.55, green: 0.74, blue: 0.58, alpha: 1.0)
     /// 平面施設の不透明度
     static let groundOpacity: Float = 1.0
-    /// 経路線の色
-    static let routeColor = UIColor.systemCyan
+    /// 経路線の色（ダーク: シアン）
+    static let routeColorDark = UIColor.systemCyan
+    /// 経路線の色（ライト: 淡い背景でもコントラストが出る濃いめの青）
+    static let routeColorLight = UIColor(red: 0.0, green: 0.42, blue: 0.78, alpha: 1.0)
     /// 経路線の太さ
     static let routeWidth: CGFloat = 5.0
   }
@@ -69,8 +88,16 @@ struct MapLibreMapView: UIViewRepresentable {
   /// カメラ移動指示
   let cameraCommand: CameraCommand?
 
+  /// 現在のカラースキーム（ライト/ダークでベース地図スタイルと建物・経路色を切り替える）
+  let colorScheme: ColorScheme
+
   func makeUIView(context: Context) -> MLNMapView {
-    let mapView = MLNMapView(frame: .zero, styleURL: MapConstants.styleURL)
+    context.coordinator.colorScheme = colorScheme
+    context.coordinator.appliedColorScheme = colorScheme
+    let mapView = MLNMapView(
+      frame: .zero,
+      styleURL: MapConstants.styleURL(for: colorScheme)
+    )
     mapView.delegate = context.coordinator
     mapView.showsUserLocation = true
     context.coordinator.mapView = mapView
@@ -86,6 +113,16 @@ struct MapLibreMapView: UIViewRepresentable {
   }
 
   func updateUIView(_ mapView: MLNMapView, context: Context) {
+    context.coordinator.colorScheme = colorScheme
+    // 外観（ライト/ダーク）が変わったらベース地図スタイルを差し替える．
+    // スタイル再読込後にdidFinishLoading→configureStyleが3Dビル・経路レイヤを再構築する
+    if context.coordinator.appliedColorScheme != colorScheme {
+      context.coordinator.appliedColorScheme = colorScheme
+      context.coordinator.prepareForStyleReload()
+      if let url = MapConstants.styleURL(for: colorScheme) {
+        mapView.styleURL = url
+      }
+    }
     context.coordinator.apply(
       destination: destinationBuilding,
       route: route,
@@ -107,6 +144,12 @@ extension MapLibreMapView {
   final class Coordinator: NSObject {
 
     weak var mapView: MLNMapView?
+
+    /// 現在のカラースキーム（レイヤ色の選択に使う．updateUIViewから設定される）
+    var colorScheme: ColorScheme = .dark
+
+    /// スタイルへ適用済みのカラースキーム（変化検知用）
+    var appliedColorScheme: ColorScheme?
 
     /// スタイルの読み込みが完了したか
     private var isStyleLoaded = false
@@ -148,6 +191,16 @@ extension MapLibreMapView {
       applyAnnotations(destination: destination)
     }
 
+    /// スタイル差し替え（ライト/ダーク切り替え）の直前に，スタイルへ紐づく状態をリセットする．
+    /// 新スタイル読み込み後のconfigureStyleで3Dビル・経路レイヤが再構築され，
+    /// 直後のapply(...)で現在の経路が再描画される．
+    /// カメラとアノテーションはスタイル変更後も保持されるためリセットしない．
+    func prepareForStyleReload() {
+      isStyleLoaded = false
+      routeSource = nil
+      appliedRoute = nil
+    }
+
     /// CameraCommandからMapLibreのカメラを生成する
     static func makeCamera(from command: CameraCommand) -> MLNMapCamera {
       // MapKitのdistance（視線方向の距離）をMapLibreのaltitude（高度）へ換算する
@@ -184,6 +237,30 @@ extension MapLibreMapView {
       }
     }
 
+    // MARK: - Private（カラースキームに応じた色）
+
+    /// 周辺市街ビルの色（現在のカラースキームに対応）
+    private var cityBuildingColor: UIColor {
+      colorScheme == .dark
+        ? MapConstants.cityBuildingColorDark : MapConstants.cityBuildingColorLight
+    }
+
+    /// キャンパス棟の色（現在のカラースキームに対応）
+    private var campusBuildingColor: UIColor {
+      colorScheme == .dark
+        ? MapConstants.campusBuildingColorDark : MapConstants.campusBuildingColorLight
+    }
+
+    /// 平面施設（運動場など）の色（現在のカラースキームに対応）
+    private var groundColor: UIColor {
+      colorScheme == .dark ? MapConstants.groundColorDark : MapConstants.groundColorLight
+    }
+
+    /// 経路線の色（現在のカラースキームに対応）
+    private var routeColor: UIColor {
+      colorScheme == .dark ? MapConstants.routeColorDark : MapConstants.routeColorLight
+    }
+
     // MARK: - Private（レイヤ構築）
 
     /// 周辺市街の3Dビルレイヤ（タイルのbuildingレイヤを押し出し）を追加する
@@ -198,7 +275,7 @@ extension MapLibreMapView {
       layer.sourceLayerIdentifier = MapConstants.buildingSourceLayer
       layer.fillExtrusionHeight = NSExpression(forKeyPath: "render_height")
       layer.fillExtrusionBase = NSExpression(forKeyPath: "render_min_height")
-      layer.fillExtrusionColor = NSExpression(forConstantValue: MapConstants.cityBuildingColor)
+      layer.fillExtrusionColor = NSExpression(forConstantValue: cityBuildingColor)
       layer.fillExtrusionOpacity = NSExpression(
         forConstantValue: MapConstants.cityBuildingOpacity
       )
@@ -257,7 +334,7 @@ extension MapLibreMapView {
         source: source
       )
       groundLayer.predicate = NSPredicate(format: "kind == %@", "ground")
-      groundLayer.fillColor = NSExpression(forConstantValue: MapConstants.groundColor)
+      groundLayer.fillColor = NSExpression(forConstantValue: groundColor)
       groundLayer.fillOpacity = NSExpression(forConstantValue: MapConstants.groundOpacity)
       if let cityLayer = style.layer(withIdentifier: MapConstants.cityBuildingsLayerID) {
         style.insertLayer(groundLayer, above: cityLayer)
@@ -273,7 +350,7 @@ extension MapLibreMapView {
       layer.predicate = NSPredicate(format: "kind == nil OR kind != %@", "ground")
       layer.fillExtrusionHeight = NSExpression(forKeyPath: "height")
       layer.fillExtrusionBase = NSExpression(forConstantValue: 0)
-      layer.fillExtrusionColor = NSExpression(forConstantValue: MapConstants.campusBuildingColor)
+      layer.fillExtrusionColor = NSExpression(forConstantValue: campusBuildingColor)
       layer.fillExtrusionOpacity = NSExpression(
         forConstantValue: MapConstants.campusBuildingOpacity
       )
@@ -287,7 +364,7 @@ extension MapLibreMapView {
       routeSource = source
 
       let layer = MLNLineStyleLayer(identifier: MapConstants.routeLayerID, source: source)
-      layer.lineColor = NSExpression(forConstantValue: MapConstants.routeColor)
+      layer.lineColor = NSExpression(forConstantValue: routeColor)
       layer.lineWidth = NSExpression(forConstantValue: MapConstants.routeWidth)
       layer.lineCap = NSExpression(forConstantValue: "round")
       layer.lineJoin = NSExpression(forConstantValue: "round")
@@ -351,19 +428,39 @@ extension MapLibreMapView {
     /// 棟マーカー（全棟バッジ＋目的地パルスピン）を更新する
     private func applyAnnotations(destination: CampusBuilding?) {
       guard let mapView else { return }
-      guard destination?.id != appliedDestinationID || !hasAddedAnnotations else { return }
-      appliedDestinationID = destination?.id
-      hasAddedAnnotations = true
+      let newDestinationID = destination?.id
 
-      mapView.removeAnnotations(buildingAnnotations)
-      buildingAnnotations = CampusBuilding.allBuildings.map { building in
-        let annotation = CampusPointAnnotation()
-        annotation.coordinate = building.coordinate
-        annotation.building = building
-        annotation.isDestination = building.id == destination?.id
-        return annotation
+      // 初回のみ全棟マーカーを追加する
+      guard hasAddedAnnotations else {
+        hasAddedAnnotations = true
+        appliedDestinationID = newDestinationID
+        buildingAnnotations = CampusBuilding.allBuildings.map { building in
+          let annotation = CampusPointAnnotation()
+          annotation.coordinate = building.coordinate
+          annotation.building = building
+          annotation.isDestination = building.id == newDestinationID
+          return annotation
+        }
+        mapView.addAnnotations(buildingAnnotations)
+        return
       }
-      mapView.addAnnotations(buildingAnnotations)
+
+      // 2回目以降は目的地が変わったマーカー（旧・新）だけを差し替える．
+      // 全消し再追加は24個のUIHostingControllerを毎回作り直して全バッジがちらつくため避ける．
+      // MapLibreは追加時のみviewForを再問い合わせるので，対象だけremove→addする
+      guard newDestinationID != appliedDestinationID else { return }
+      let changedIDs = Set([appliedDestinationID, newDestinationID].compactMap { $0 })
+      appliedDestinationID = newDestinationID
+      let changedAnnotations = buildingAnnotations.filter { annotation in
+        guard let id = annotation.building?.id else { return false }
+        return changedIDs.contains(id)
+      }
+      guard !changedAnnotations.isEmpty else { return }
+      for annotation in changedAnnotations {
+        annotation.isDestination = annotation.building?.id == newDestinationID
+      }
+      mapView.removeAnnotations(changedAnnotations)
+      mapView.addAnnotations(changedAnnotations)
     }
   }
 }
@@ -396,12 +493,14 @@ extension MapLibreMapView.Coordinator: MLNMapViewDelegate {
         // 目的地はパルスアニメーション付きピン（座標が底辺中央に来るよう上へずらす）
         return HostedAnnotationView(
           rootView: AnyView(DestinationMarkerView()),
-          anchorToBottom: true
+          anchorToBottom: true,
+          accessibilityLabel: "目的地: \(building.displayName)、次の授業の棟"
         )
       }
       return HostedAnnotationView(
         rootView: AnyView(BuildingAnnotationView(building: building)),
-        anchorToBottom: false
+        anchorToBottom: false,
+        accessibilityLabel: building.displayName
       )
     }
   }
@@ -432,7 +531,8 @@ final class HostedAnnotationView: MLNAnnotationView {
   /// - Parameters:
   ///   - rootView: 表示するSwiftUIビュー
   ///   - anchorToBottom: trueの場合，座標がビューの底辺中央に来るよう配置する（ピン用）
-  init(rootView: AnyView, anchorToBottom: Bool) {
+  ///   - accessibilityLabel: VoiceOverで読み上げるマーカーの説明（棟名など）
+  init(rootView: AnyView, anchorToBottom: Bool, accessibilityLabel: String) {
     hostingController = UIHostingController(rootView: rootView)
     super.init(reuseIdentifier: nil)
 
@@ -444,6 +544,11 @@ final class HostedAnnotationView: MLNAnnotationView {
     frame = CGRect(origin: .zero, size: size)
     hostingController.view.frame = bounds
     addSubview(hostingController.view)
+
+    // VoiceOver: 内部のSwiftUI要素を個別に読まず，このマーカー全体を1要素として読み上げる
+    hostingController.view.accessibilityElementsHidden = true
+    isAccessibilityElement = true
+    self.accessibilityLabel = accessibilityLabel
 
     if anchorToBottom {
       centerOffset = CGVector(dx: 0, dy: -size.height / 2)

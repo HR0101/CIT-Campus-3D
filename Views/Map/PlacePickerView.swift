@@ -64,7 +64,6 @@ struct PlacePickerView: View {
         }
       }
     }
-    .preferredColorScheme(.dark)
   }
 
   // MARK: - 行

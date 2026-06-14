@@ -32,6 +32,9 @@ struct CampusMapView: View {
   /// ユーザー設定（経路表示の制限）
   @Environment(AppSettings.self) private var settings
 
+  /// 実効カラースキーム（アプリ外観設定に追従．マップのライト/ダーク描画に渡す）
+  @Environment(\.colorScheme) private var colorScheme
+
   /// マップ状態のViewModel
   @State private var viewModel: CampusMapViewModel
 
@@ -43,6 +46,12 @@ struct CampusMapView: View {
 
   /// 場所一覧シートの表示フラグ
   @State private var isPlacePickerPresented = false
+
+  /// 到着案内（VoiceOver）を一度だけ読み上げるためのフラグ（目的地が変わるとリセット）
+  @State private var didAnnounceArrival = false
+
+  /// 到着とみなす目的地までの距離（メートル）
+  private let arrivalThresholdMeters: CLLocationDistance = 40
 
   init(
     locationService: LocationService,
@@ -83,12 +92,32 @@ struct CampusMapView: View {
     return "\(floor)階"
   }
 
+  /// 現在地から目的地までの直線距離（どちらか無ければnil）
+  private var distanceToDestination: CLLocationDistance? {
+    guard
+      let location = locationService.currentLocation,
+      let building = viewModel.destinationBuilding
+    else {
+      return nil
+    }
+    return location.distance(
+      from: CLLocation(latitude: building.latitude, longitude: building.longitude)
+    )
+  }
+
+  /// 目的地に到着したか（しきい値以内）
+  private var hasArrivedAtDestination: Bool {
+    guard let distance = distanceToDestination else { return false }
+    return distance <= arrivalThresholdMeters
+  }
+
   var body: some View {
     ZStack(alignment: .topLeading) {
       MapLibreMapView(
         destinationBuilding: viewModel.destinationBuilding,
         route: viewModel.route,
-        cameraCommand: viewModel.cameraCommand
+        cameraCommand: viewModel.cameraCommand,
+        colorScheme: colorScheme
       )
       .ignoresSafeArea()
 
@@ -109,6 +138,13 @@ struct CampusMapView: View {
     .task {
       // 初回表示時に現在状態で経路表示を評価する
       await refreshRoute()
+    }
+    .onAppear {
+      // 現在地はマップ表示中のみ取得する（時間割・設定タブではGPSを止め電池を節約）
+      locationService.startUpdating()
+    }
+    .onDisappear {
+      locationService.stopUpdating()
     }
     .onChange(of: locationService.currentLocation) { _, _ in
       // 現在地が更新されるたびに経路表示（と大学周辺判定）を更新する
@@ -132,7 +168,21 @@ struct CampusMapView: View {
     .onChange(of: settings.restrictRouteToCampus) { _, _ in
       Task { await refreshRoute() }
     }
-    .preferredColorScheme(.dark)
+    .onChange(of: hasArrivedAtDestination) { _, arrived in
+      // 到着した瞬間に一度だけVoiceOverで読み上げる
+      guard arrived, !didAnnounceArrival, let building = viewModel.destinationBuilding else {
+        return
+      }
+      didAnnounceArrival = true
+      UIAccessibility.post(
+        notification: .announcement,
+        argument: "\(building.displayName) に到着しました"
+      )
+    }
+    .onChange(of: viewModel.destinationBuilding?.id) { _, _ in
+      // 目的地が変わったら到着案内をリセットする
+      didAnnounceArrival = false
+    }
   }
 
   /// 現在の目的地・設定で経路表示を更新する．
@@ -174,7 +224,6 @@ struct CampusMapView: View {
       .padding(.vertical, 9)
       .background(.ultraThinMaterial, in: Capsule())
       .foregroundStyle(.cyan)
-      .environment(\.colorScheme, .dark)
     }
     .accessibilityLabel(isInfoExpanded ? "情報を隠す" : "情報を表示")
   }
@@ -203,7 +252,7 @@ struct CampusMapView: View {
               .foregroundStyle(.secondary)
             Text(place.displayName)
               .font(.headline)
-              .foregroundStyle(.white)
+              .foregroundStyle(.primary)
           }
           Spacer()
         }
@@ -218,7 +267,6 @@ struct CampusMapView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .padding()
       .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-      .environment(\.colorScheme, .dark)
     }
   }
 
@@ -242,7 +290,6 @@ struct CampusMapView: View {
         .foregroundStyle(.cyan)
         .frame(width: 44, height: 44)
         .background(.ultraThinMaterial, in: Circle())
-        .environment(\.colorScheme, .dark)
     }
     .accessibilityLabel("場所一覧")
   }
@@ -257,7 +304,6 @@ struct CampusMapView: View {
         .foregroundStyle(.cyan)
         .frame(width: 44, height: 44)
         .background(.ultraThinMaterial, in: Circle())
-        .environment(\.colorScheme, .dark)
     }
     .accessibilityLabel("現在地へ移動")
   }
@@ -323,7 +369,18 @@ struct CampusMapView: View {
     case .locating:
       ProgressBanner(message: "現在地を取得しています…")
     case .idle, .available:
-      EmptyView()
+      // 「おおよその位置情報」（低精度）許可時は正確な経路が出せないため案内する
+      if locationService.isReducedAccuracy {
+        StatusBanner(
+          systemImageName: "location.circle",
+          message: "おおよその位置情報のため，正確な経路を表示できません．設定で「正確な位置情報」をオンにしてください．",
+          accentColor: .orange,
+          actionTitle: "設定を開く",
+          action: openAppSettings
+        )
+      } else {
+        EmptyView()
+      }
     }
   }
 
@@ -349,7 +406,13 @@ struct CampusMapView: View {
         }
       )
     case .showingRoute:
-      if let route = viewModel.route, let building = viewModel.destinationBuilding {
+      if hasArrivedAtDestination, let building = viewModel.destinationBuilding {
+        StatusBanner(
+          systemImageName: "checkmark.circle.fill",
+          message: "\(building.displayName) に到着しました",
+          accentColor: .green
+        )
+      } else if let route = viewModel.route, let building = viewModel.destinationBuilding {
         RouteSummaryCard(
           destinationName: building.displayName,
           route: route,

@@ -134,13 +134,19 @@ enum LectureCellParser {
 
   /// 場所テキストから教室番号を取り出す
   /// 例: 「６４６講義室／津田沼キャンパス」→「646」
+  /// 「講義室」の直前に連続する数字だけを取り，前方の無関係な数字を巻き込まない
   private static func extractRoomNumber(from locationText: String) -> String {
     guard let range = locationText.range(of: "講義室") else {
       return ""
     }
     let prefix = locationText[..<range.lowerBound]
-    let digits = prefix.compactMap { normalizeDigit($0) }
-    return String(digits)
+    // 「講義室」の直前から後方へ連続する数字を集め，非数字に当たったら打ち切る
+    var reversedDigits: [Character] = []
+    for character in prefix.reversed() {
+      guard let digit = normalizeDigit(character) else { break }
+      reversedDigits.append(digit)
+    }
+    return String(reversedDigits.reversed())
   }
 
   /// 全角数字を半角に正規化する（数字以外はnil）
