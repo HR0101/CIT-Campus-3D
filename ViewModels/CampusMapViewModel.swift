@@ -181,6 +181,16 @@ final class CampusMapViewModel {
     )
   }
 
+  /// 指定した建物へカメラを寄せる（場所一覧から選んだときの即時フィードバック用）
+  func focusOnBuilding(_ building: CampusBuilding) {
+    cameraCommand = CameraCommand(
+      center: building.coordinate,
+      distance: CameraConstants.userFocusDistance,
+      heading: 0,
+      pitch: CameraConstants.pitchDegrees
+    )
+  }
+
   // MARK: - Private
 
   /// 徒歩経路を探索し，成功したらカメラを経路全体へ移動する

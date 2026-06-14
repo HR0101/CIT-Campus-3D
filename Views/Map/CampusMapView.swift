@@ -3,8 +3,8 @@
 //  CIT-Campus-3D
 //
 //  3Dキャンパスマップ画面（MapLibre＋OSMベース）．
-//  「次の授業」の講義棟を目的地として，現在地からの徒歩経路をpitch付き3D視点で描画する．
-//  「大学周辺でのみ経路を表示」設定が有効な場合，範囲外では経路を描かない．
+//  「次の授業」の講義棟を既定の目的地とし，現在地からの徒歩経路をpitch付き3D視点で描画する．
+//  左上のボタンで次の授業パネルを開閉でき，場所一覧から任意の場所を目的地に選べる．
 //
 
 import CoreLocation
@@ -17,7 +17,7 @@ struct CampusMapView: View {
   /// 現在地サービス（ContentViewが所有し，注入する）
   let locationService: LocationService
 
-  /// 目的地の講義棟（次の授業の講義棟．不明な場合はnil）
+  /// 次の授業の講義棟（自動で決まる既定の目的地．不明な場合はnil）
   let destinationBuilding: CampusBuilding?
 
   /// 次の授業の判定結果（登録授業がない場合はnil）
@@ -35,6 +35,15 @@ struct CampusMapView: View {
   /// マップ状態のViewModel
   @State private var viewModel: CampusMapViewModel
 
+  /// 次の授業パネルを開いているか
+  @State private var isInfoExpanded = true
+
+  /// 手動で選んだ目的地（nilなら次の授業を目的地にする）
+  @State private var manualDestination: CampusBuilding?
+
+  /// 場所一覧シートの表示フラグ
+  @State private var isPlacePickerPresented = false
+
   init(
     locationService: LocationService,
     destinationBuilding: CampusBuilding?,
@@ -50,8 +59,32 @@ struct CampusMapView: View {
     _viewModel = State(initialValue: CampusMapViewModel(destinationBuilding: destinationBuilding))
   }
 
+  /// 実際の目的地（手動選択があればそれを優先，無ければ次の授業）
+  private var effectiveDestination: CampusBuilding? {
+    manualDestination ?? destinationBuilding
+  }
+
+  /// 手動で目的地を選んでいるか
+  private var isManualDestination: Bool {
+    manualDestination != nil
+  }
+
+  /// 次の授業の教室階までの昇降時間（秒）．手動目的地・階数不明の場合は0
+  private var destinationFloorSeconds: TimeInterval {
+    guard !isManualDestination else { return 0 }
+    return nextLecture?.lecture.floorClimbSeconds ?? 0
+  }
+
+  /// 次の授業の教室の階数表示（例: 3階）．手動目的地・1階・不明の場合はnil
+  private var destinationFloorNote: String? {
+    guard !isManualDestination, let floor = nextLecture?.lecture.floor, floor > 1 else {
+      return nil
+    }
+    return "\(floor)階"
+  }
+
   var body: some View {
-    ZStack(alignment: .top) {
+    ZStack(alignment: .topLeading) {
       MapLibreMapView(
         destinationBuilding: viewModel.destinationBuilding,
         route: viewModel.route,
@@ -59,54 +92,160 @@ struct CampusMapView: View {
       )
       .ignoresSafeArea()
 
-      statusOverlay
+      topPanel
         .padding(.horizontal)
         .padding(.top, 8)
     }
     .overlay(alignment: .bottomTrailing) {
-      focusUserButton
+      controlButtons
         .padding(.trailing)
         .padding(.bottom, 56)
     }
+    .sheet(isPresented: $isPlacePickerPresented) {
+      PlacePickerView(currentLocation: locationService.currentLocation) { place in
+        manualDestination = place
+      }
+    }
     .task {
       // 初回表示時に現在状態で経路表示を評価する
-      await viewModel.refreshRoute(
-        currentLocation: locationService.currentLocation,
-        restrictToCampus: settings.restrictRouteToCampus
-      )
+      await refreshRoute()
     }
-    .onChange(of: locationService.currentLocation) { _, newLocation in
+    .onChange(of: locationService.currentLocation) { _, _ in
       // 現在地が更新されるたびに経路表示（と大学周辺判定）を更新する
-      Task {
-        await viewModel.refreshRoute(
-          currentLocation: newLocation,
-          restrictToCampus: settings.restrictRouteToCampus
-        )
-      }
+      Task { await refreshRoute() }
     }
     .onChange(of: destinationBuilding?.id) { _, _ in
-      // 「次の授業」が変わったら目的地と経路を更新する
+      // 「次の授業」が変わったら反映する（ただし手動選択中は上書きしない）
+      guard manualDestination == nil else { return }
       viewModel.setDestination(destinationBuilding)
-      Task {
-        await viewModel.refreshRoute(
-          currentLocation: locationService.currentLocation,
-          restrictToCampus: settings.restrictRouteToCampus
-        )
-      }
+      Task { await refreshRoute() }
     }
-    .onChange(of: settings.restrictRouteToCampus) { _, newValue in
-      // 「大学周辺でのみ表示」設定の切り替えを即時反映する
-      Task {
-        await viewModel.refreshRoute(
-          currentLocation: locationService.currentLocation,
-          restrictToCampus: newValue
-        )
+    .onChange(of: manualDestination?.id) { _, _ in
+      // 手動で目的地を選んだ（または解除した）ときに反映する
+      viewModel.setDestination(effectiveDestination)
+      if let place = manualDestination, locationService.currentLocation == nil {
+        // 現在地が未取得で経路が出せない場合でも，選んだ場所へカメラを寄せる
+        viewModel.focusOnBuilding(place)
       }
+      Task { await refreshRoute() }
+    }
+    .onChange(of: settings.restrictRouteToCampus) { _, _ in
+      Task { await refreshRoute() }
     }
     .preferredColorScheme(.dark)
   }
 
-  // MARK: - 現在地ボタン
+  /// 現在の目的地・設定で経路表示を更新する．
+  /// 手動選択時は大学周辺の制限を無視し，どこからでも経路を出す．
+  private func refreshRoute() async {
+    await viewModel.refreshRoute(
+      currentLocation: locationService.currentLocation,
+      restrictToCampus: isManualDestination ? false : settings.restrictRouteToCampus
+    )
+  }
+
+  // MARK: - 左上パネル（次の授業／目的地）
+
+  /// 左上の開閉ボタンと情報パネル
+  private var topPanel: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      infoToggleButton
+      if isInfoExpanded {
+        infoContent
+      }
+    }
+  }
+
+  /// 次の授業パネルの開閉ボタン
+  private var infoToggleButton: some View {
+    Button {
+      withAnimation(.easeInOut(duration: 0.2)) {
+        isInfoExpanded.toggle()
+      }
+    } label: {
+      HStack(spacing: 6) {
+        Image(systemName: isManualDestination ? "mappin.and.ellipse" : "graduationcap.fill")
+        Text(isManualDestination ? "目的地" : "次の授業")
+        Image(systemName: isInfoExpanded ? "chevron.up" : "chevron.down")
+          .font(.caption2)
+      }
+      .font(.subheadline.bold())
+      .padding(.horizontal, 14)
+      .padding(.vertical, 9)
+      .background(.ultraThinMaterial, in: Capsule())
+      .foregroundStyle(.cyan)
+      .environment(\.colorScheme, .dark)
+    }
+    .accessibilityLabel(isInfoExpanded ? "情報を隠す" : "情報を表示")
+  }
+
+  /// 展開時に表示する情報（目的地カード・状態バナー）
+  @ViewBuilder
+  private var infoContent: some View {
+    if isManualDestination {
+      manualDestinationCard
+    } else {
+      nextLectureBanner
+    }
+    locationStateBanner
+    navigationStateBanner
+  }
+
+  /// 手動選択中の目的地カード（「次の授業に戻る」ボタンつき）
+  @ViewBuilder
+  private var manualDestinationCard: some View {
+    if let place = manualDestination {
+      VStack(alignment: .leading, spacing: 8) {
+        HStack {
+          VStack(alignment: .leading, spacing: 2) {
+            Text("\(place.campus.displayName)キャンパス")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+            Text(place.displayName)
+              .font(.headline)
+              .foregroundStyle(.white)
+          }
+          Spacer()
+        }
+        Button {
+          manualDestination = nil
+        } label: {
+          Label("次の授業に戻る", systemImage: "arrow.uturn.backward")
+            .font(.caption.bold())
+            .foregroundStyle(.cyan)
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding()
+      .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+      .environment(\.colorScheme, .dark)
+    }
+  }
+
+  // MARK: - 右下のボタン
+
+  /// 場所一覧ボタンと現在地ボタン
+  private var controlButtons: some View {
+    VStack(spacing: 12) {
+      placeListButton
+      focusUserButton
+    }
+  }
+
+  /// 場所一覧を開くボタン
+  private var placeListButton: some View {
+    Button {
+      isPlacePickerPresented = true
+    } label: {
+      Image(systemName: "list.bullet")
+        .font(.system(size: 18, weight: .semibold))
+        .foregroundStyle(.cyan)
+        .frame(width: 44, height: 44)
+        .background(.ultraThinMaterial, in: Circle())
+        .environment(\.colorScheme, .dark)
+    }
+    .accessibilityLabel("場所一覧")
+  }
 
   /// カメラを現在地へ移動するボタン
   private var focusUserButton: some View {
@@ -123,17 +262,7 @@ struct CampusMapView: View {
     .accessibilityLabel("現在地へ移動")
   }
 
-  // MARK: - 状態オーバーレイ（信頼性の担保）
-
-  /// 次の授業カード・位置情報・経路探索の状態に応じたバナー群
-  @ViewBuilder
-  private var statusOverlay: some View {
-    VStack(spacing: 10) {
-      nextLectureBanner
-      locationStateBanner
-      navigationStateBanner
-    }
-  }
+  // MARK: - 状態バナー（信頼性の担保）
 
   /// 次の授業の情報カード（未登録・休講・期間外は案内バナー）
   @ViewBuilder
@@ -214,14 +343,19 @@ struct CampusMapView: View {
           Task {
             await viewModel.retryRoute(
               currentLocation: locationService.currentLocation,
-              restrictToCampus: settings.restrictRouteToCampus
+              restrictToCampus: isManualDestination ? false : settings.restrictRouteToCampus
             )
           }
         }
       )
     case .showingRoute:
       if let route = viewModel.route, let building = viewModel.destinationBuilding {
-        RouteSummaryCard(destinationName: building.displayName, route: route)
+        RouteSummaryCard(
+          destinationName: building.displayName,
+          route: route,
+          extraSeconds: destinationFloorSeconds,
+          floorNote: destinationFloorNote
+        )
       }
     case .outsideCampus:
       outsideCampusBanner

@@ -11,6 +11,14 @@ import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// 時間割の表示形式
+private enum TimetableLayout: String {
+  /// 曜日ごとのリスト表示（科目・時限・場所・教員を縦に並べる）
+  case list
+  /// 曜日×時限の表（グリッド）表示
+  case grid
+}
+
 /// 時間割一覧画面
 struct TimetableListView: View {
 
@@ -31,6 +39,9 @@ struct TimetableListView: View {
 
   /// 表示中の学期（初期値は現在の学期）
   @State private var selectedSemester: Semester = .current(on: Date())
+
+  /// 時間割の表示形式（リスト／表．端末に記憶する）
+  @AppStorage("timetableLayout") private var layout: TimetableLayout = .grid
 
   /// ファイル選択ダイアログの表示フラグ
   @State private var isShowingFileImporter = false
@@ -80,12 +91,28 @@ struct TimetableListView: View {
           if filteredLectures.isEmpty {
             emptyStateView
           } else {
-            timetableList
+            switch layout {
+            case .list:
+              timetableList
+            case .grid:
+              timetableGrid
+            }
           }
         }
       }
       .navigationTitle("時間割")
       .toolbar {
+        ToolbarItem(placement: .topBarLeading) {
+          Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+              layout = (layout == .list) ? .grid : .list
+            }
+          } label: {
+            // 切り替え先の形式を表すアイコンを出す
+            Image(systemName: layout == .list ? "tablecells" : "list.bullet")
+          }
+          .accessibilityLabel(layout == .list ? "表形式で表示" : "リスト形式で表示")
+        }
         ToolbarItem(placement: .primaryAction) {
           Button {
             isShowingFileImporter = true
@@ -166,6 +193,14 @@ struct TimetableListView: View {
     }
   }
 
+  // MARK: - 表形式（曜日×時限のグリッド）
+
+  private var timetableGrid: some View {
+    TimetableGrid(lectures: filteredLectures) { lecture in
+      deleteLecture(lecture)
+    }
+  }
+
   // MARK: - Private
 
   /// ファイル選択の結果を受け取り，解析してプレビューへ進む
@@ -217,6 +252,16 @@ struct TimetableListView: View {
     }
   }
 
+  /// 授業を1件削除し，保存失敗時はアラートを表示する（表形式のセルから呼ばれる）
+  private func deleteLecture(_ lecture: Lecture) {
+    modelContext.delete(lecture)
+    do {
+      try modelContext.save()
+    } catch {
+      showError(title: "削除に失敗しました", message: error.localizedDescription)
+    }
+  }
+
   /// エラーアラートを表示する
   private func showError(title: String, message: String) {
     errorTitle = title
@@ -254,6 +299,143 @@ struct LectureRow: View {
       .foregroundStyle(.secondary)
     }
     .padding(.vertical, 2)
+  }
+}
+
+/// 時間割を「曜日×時限」の表（グリッド）で表示するビュー
+struct TimetableGrid: View {
+
+  /// 表示する授業（学期で絞り込み済み）
+  let lectures: [Lecture]
+  /// セルから授業を削除するときのコールバック
+  let onDelete: (Lecture) -> Void
+
+  /// 表のレイアウトに関する定数
+  private enum GridConstants {
+    /// 時限ラベル列の幅
+    static let periodColumnWidth: CGFloat = 40
+    /// 各セルの最小の高さ
+    static let cellMinHeight: CGFloat = 56
+    /// セルの角丸半径
+    static let cornerRadius: CGFloat = 8
+    /// 実際のコマ数が少なくても最低限表示する時限数（一般的な時間割の見た目に合わせる）
+    static let minimumVisiblePeriods = 5
+  }
+
+  /// 削除確認の対象（非nilでダイアログを表示）
+  @State private var lectureToDelete: Lecture?
+
+  /// 表に並べる曜日（月〜金）
+  private let days = Weekday.lectureDays
+
+  /// 表に並べる時限（1限〜実際に使われている最大時限．最低 minimumVisiblePeriods 行は出す）
+  private var periods: [ClassPeriod] {
+    let maxUsed = lectures.map(\.period).max() ?? 0
+    let upperBound = max(GridConstants.minimumVisiblePeriods, maxUsed)
+    return ClassPeriod.allPeriods.filter { $0.number <= upperBound }
+  }
+
+  var body: some View {
+    ScrollView {
+      Grid(horizontalSpacing: 4, verticalSpacing: 4) {
+        headerRow
+        ForEach(periods) { period in
+          GridRow {
+            periodLabel(period)
+            ForEach(days) { day in
+              cell(day: day, period: period.number)
+            }
+          }
+        }
+      }
+      .padding(.horizontal)
+      .padding(.bottom, 12)
+    }
+    .confirmationDialog(
+      lectureToDelete?.subjectName ?? "",
+      isPresented: Binding(
+        get: { lectureToDelete != nil },
+        set: { if !$0 { lectureToDelete = nil } }
+      ),
+      titleVisibility: .visible,
+      presenting: lectureToDelete
+    ) { lecture in
+      Button("この授業を削除", role: .destructive) {
+        onDelete(lecture)
+      }
+      Button("キャンセル", role: .cancel) {}
+    } message: { lecture in
+      Text(lecture.placeText)
+    }
+  }
+
+  // MARK: - 部品
+
+  /// ヘッダ行（左上の空セル＋曜日名）
+  private var headerRow: some View {
+    GridRow {
+      Color.clear
+        .frame(width: GridConstants.periodColumnWidth, height: 1)
+      ForEach(days) { day in
+        Text(day.shortName)
+          .font(.subheadline.bold())
+          .frame(maxWidth: .infinity)
+      }
+    }
+  }
+
+  /// 時限ラベル（番号＋開始時刻）
+  private func periodLabel(_ period: ClassPeriod) -> some View {
+    VStack(spacing: 2) {
+      Text("\(period.number)")
+        .font(.subheadline.bold())
+      Text(String(format: "%d:%02d", period.startHour, period.startMinute))
+        .font(.system(size: 9))
+        .foregroundStyle(.secondary)
+    }
+    .frame(width: GridConstants.periodColumnWidth)
+    .frame(minHeight: GridConstants.cellMinHeight)
+  }
+
+  /// 1セル（該当する授業があればカード，なければ空欄）
+  @ViewBuilder
+  private func cell(day: Weekday, period: Int) -> some View {
+    let cellLectures = lectures.filter { $0.weekday == day && $0.period == period }
+    if let lecture = cellLectures.first {
+      Button {
+        lectureToDelete = lecture
+      } label: {
+        VStack(spacing: 2) {
+          Text(lecture.subjectName)
+            .font(.caption2.bold())
+            .lineLimit(3)
+            .minimumScaleFactor(0.8)
+            .multilineTextAlignment(.center)
+          if !lecture.roomNumber.isEmpty {
+            Text(lecture.roomNumber)
+              .font(.system(size: 9))
+              .foregroundStyle(.secondary)
+          }
+          // 同じコマに複数登録がある場合の件数表示
+          if cellLectures.count > 1 {
+            Text("他\(cellLectures.count - 1)件")
+              .font(.system(size: 8))
+              .foregroundStyle(.secondary)
+          }
+        }
+        .frame(maxWidth: .infinity, minHeight: GridConstants.cellMinHeight)
+        .padding(4)
+        .background(
+          RoundedRectangle(cornerRadius: GridConstants.cornerRadius)
+            .fill(Color.accentColor.opacity(0.18))
+        )
+      }
+      .buttonStyle(.plain)
+    } else {
+      RoundedRectangle(cornerRadius: GridConstants.cornerRadius)
+        .fill(Color.gray.opacity(0.1))
+        .frame(maxWidth: .infinity, minHeight: GridConstants.cellMinHeight)
+    }
   }
 }
 

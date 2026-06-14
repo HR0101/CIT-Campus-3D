@@ -130,9 +130,11 @@ final class NotificationService {
     // 出発時刻がすでに過ぎている場合はスキップする
     guard fireDate > now else { return }
 
-    let walkMinutes = max(1, Int(ceil(travelTime / 60)))
+    // travelTimeは徒歩時間＋教室階までの昇降時間を含む（「教室に着く」までの時間）
+    let totalMinutes = max(1, Int(ceil(travelTime / 60)))
     let place = result.lecture.building?.displayName ?? result.lecture.placeText
-    let body = "そろそろ出発：\(place)まで徒歩約\(walkMinutes)分です．「\(result.lecture.subjectName)」に間に合います．"
+    let floorText = result.lecture.floor.map { "（\($0)階）" } ?? ""
+    let body = "そろそろ出発：\(place)\(floorText)の教室まで約\(totalMinutes)分です．「\(result.lecture.subjectName)」に間に合います．"
 
     scheduleNotification(
       identifier: NotificationConstants.departureReminderID,

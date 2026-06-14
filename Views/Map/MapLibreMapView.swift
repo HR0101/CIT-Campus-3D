@@ -32,6 +32,8 @@ struct MapLibreMapView: UIViewRepresentable {
     static let campusSourceID = "campus-buildings-source"
     /// キャンパス棟の3DレイヤのID
     static let campusLayerID = "campus-3d-buildings"
+    /// 運動場など平面施設（kind=ground）のフラット塗りレイヤのID
+    static let campusGroundLayerID = "campus-ground"
     /// 経路ソースのID
     static let routeSourceID = "route-source"
     /// 経路レイヤのID
@@ -48,6 +50,10 @@ struct MapLibreMapView: UIViewRepresentable {
     static let campusBuildingColor = UIColor(white: 0.34, alpha: 1.0)
     /// キャンパス棟の不透明度（完全不透明）
     static let campusBuildingOpacity: Float = 1.0
+    /// 運動場など平面施設の色（芝を思わせる落ち着いた緑）
+    static let groundColor = UIColor(red: 0.16, green: 0.32, blue: 0.22, alpha: 1.0)
+    /// 平面施設の不透明度
+    static let groundOpacity: Float = 1.0
     /// 経路線の色
     static let routeColor = UIColor.systemCyan
     /// 経路線の太さ
@@ -245,22 +251,33 @@ extension MapLibreMapView {
       )
       style.addSource(source)
 
+      // 運動場など平面施設（kind=ground）はフラットな塗りで表示する（押し出さない）
+      let groundLayer = MLNFillStyleLayer(
+        identifier: MapConstants.campusGroundLayerID,
+        source: source
+      )
+      groundLayer.predicate = NSPredicate(format: "kind == %@", "ground")
+      groundLayer.fillColor = NSExpression(forConstantValue: MapConstants.groundColor)
+      groundLayer.fillOpacity = NSExpression(forConstantValue: MapConstants.groundOpacity)
+      if let cityLayer = style.layer(withIdentifier: MapConstants.cityBuildingsLayerID) {
+        style.insertLayer(groundLayer, above: cityLayer)
+      } else {
+        style.addLayer(groundLayer)
+      }
+
+      // 講義棟などの建物（kind != ground）は高さに応じて3D押し出しで表示する
       let layer = MLNFillExtrusionStyleLayer(
         identifier: MapConstants.campusLayerID,
         source: source
       )
+      layer.predicate = NSPredicate(format: "kind == nil OR kind != %@", "ground")
       layer.fillExtrusionHeight = NSExpression(forKeyPath: "height")
       layer.fillExtrusionBase = NSExpression(forConstantValue: 0)
       layer.fillExtrusionColor = NSExpression(forConstantValue: MapConstants.campusBuildingColor)
       layer.fillExtrusionOpacity = NSExpression(
         forConstantValue: MapConstants.campusBuildingOpacity
       )
-
-      if let cityLayer = style.layer(withIdentifier: MapConstants.cityBuildingsLayerID) {
-        style.insertLayer(layer, above: cityLayer)
-      } else {
-        style.addLayer(layer)
-      }
+      style.insertLayer(layer, above: groundLayer)
     }
 
     /// 経路描画用のソースとレイヤを準備する

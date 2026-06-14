@@ -201,13 +201,20 @@ extension CampusBuilding {
     heightMeters: 28,
     facilityNote: "学生寮"
   )
+  // 茜浜運動場（千葉工業大学 茜浜運動施設）．キャンパス西側の屋外運動施設．
+  // 平面のため高さは0とし，マップではフラットな塗り（kind=ground）で表示する
+  static let snAkanehama = CampusBuilding(
+    id: "sn-akanehama", campus: .shinNarashino, name: "茜浜運動場",
+    latitude: 35.6620451, longitude: 140.0078556,
+    heightMeters: 0
+  )
 
   /// 新習志野キャンパスの全建物（4号館は存在しない）
   static let shinNarashinoBuildings: [CampusBuilding] = [
     snBuilding1, snBuilding2, snBuilding3, snBuilding5,
     snBuilding6, snBuilding7, snBuilding8, snBuilding9,
     snBuilding10, snBuilding11, snBuilding12,
-    snCafeteria, snGym, snDormSouyou, snDormTsubaki,
+    snCafeteria, snGym, snDormSouyou, snDormTsubaki, snAkanehama,
   ]
 }
 

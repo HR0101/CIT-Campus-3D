@@ -9,6 +9,12 @@
 import Foundation
 import SwiftData
 
+/// 教室へのアクセス時間の推定に関する定数
+private enum ClassroomAccessConstants {
+  /// 階段で1フロア上るのにかかる推定時間（秒）．エレベーターは使わず階段で上る前提とする
+  static let secondsPerFloor: TimeInterval = 25
+}
+
 /// 時間割の1コマ（授業）
 @Model
 final class Lecture {
@@ -75,6 +81,23 @@ final class Lecture {
   /// 時限の定義（開始・終了時刻つき．不正な時限番号の場合はnil）
   var classPeriod: ClassPeriod? {
     ClassPeriod.period(number: period)
+  }
+
+  /// 教室の階数（教室番号の2文字目から推定．例: 731→3階．判定できなければnil）
+  /// 千葉工大の教室番号は「1文字目＝棟番号，2文字目＝階」の規則に従っている
+  var floor: Int? {
+    let digits = roomNumber.compactMap { $0.wholeNumberValue }
+    guard digits.count >= 2 else { return nil }
+    let candidate = digits[1]
+    return candidate >= 1 ? candidate : nil
+  }
+
+  /// 建物入口（1階）から教室階まで階段で上るのにかかる推定時間（秒）．
+  /// 1階分ごとに一定時間を加算するため，上の階ほど時間が増える．
+  /// 1階・地下・不明の場合は0とする．
+  var floorClimbSeconds: TimeInterval {
+    guard let floor, floor > 1 else { return 0 }
+    return TimeInterval(floor - 1) * ClassroomAccessConstants.secondsPerFloor
   }
 
   /// 場所の表示文字列（例: 津田沼 7号館 731教室．不明の場合は「津田沼・教室未定」）

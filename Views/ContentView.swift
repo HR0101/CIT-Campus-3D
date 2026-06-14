@@ -129,15 +129,18 @@ struct ContentView: View {
       return
     }
 
-    // 出発リマインダーが有効な場合のみ，現在地から次の講義棟までの徒歩時間を求める
+    // 出発リマインダーが有効な場合のみ，現在地から次の講義棟までの徒歩時間を求める．
+    // 教室の階数分の昇降時間も加え，「教室に着く」までの時間で出発時刻を逆算する．
     var travelTime: TimeInterval?
     if settings.enableDepartureReminder,
        let next = upcoming.first,
        let destination = next.lecture.building,
        let location = locationService.currentLocation {
-      travelTime = try? await routeService
+      if let walkingTime = try? await routeService
         .calculateWalkingRoute(from: location.coordinate, to: destination.coordinate)
-        .expectedTravelTime
+        .expectedTravelTime {
+        travelTime = walkingTime + next.lecture.floorClimbSeconds
+      }
     }
 
     notifications.reschedule(
