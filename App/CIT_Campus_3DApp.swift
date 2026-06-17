@@ -24,9 +24,15 @@ struct CIT_Campus_3DApp: App {
   /// 通知サービス（許可管理・予約）
   @State private var notificationService = NotificationService()
 
+  /// iCloud同期の状態監視
+  @State private var syncMonitor = CloudSyncMonitor()
+
   init() {
     do {
-      modelContainer = try ModelContainer(for: Lecture.self)
+      // App Group導入前の旧ストアがあれば共有ストアへ一度だけ移行してから開く
+      // （移行しないとウィジェットと共有する空のストアで起動し，既存の時間割が見えなくなるため）
+      SharedModelContainer.migrateDefaultStoreIfNeeded()
+      modelContainer = try SharedModelContainer.make()
       containerErrorMessage = nil
     } catch {
       modelContainer = nil
@@ -47,6 +53,7 @@ struct CIT_Campus_3DApp: App {
       // 共有サービスを全画面へ注入する
       .environment(appSettings)
       .environment(notificationService)
+      .environment(syncMonitor)
       // 外観設定（システム連動／ライト／ダーク）に従う．
       // .systemのときはnilを渡して端末（スマホ）のダーク／ライト設定に自動で従う
       .preferredColorScheme(appSettings.appearance.colorScheme)

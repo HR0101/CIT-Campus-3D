@@ -111,6 +111,20 @@ struct CampusMapView: View {
     return distance <= arrivalThresholdMeters
   }
 
+  /// 大学WiFiで在校と判定でき，かつ次の授業が進行中（＝その授業を受講中）か．
+  /// 手動目的地のときは対象外．在校時はその授業の棟にいるとみなして受講中を表示する
+  private var isAttendingOngoingClass: Bool {
+    guard
+      !isManualDestination,
+      let next = nextLecture,
+      next.isOngoing,
+      let building = next.lecture.building
+    else {
+      return false
+    }
+    return locationService.isOnCampus(of: building.campus)
+  }
+
   var body: some View {
     ZStack(alignment: .topLeading) {
       MapLibreMapView(
@@ -384,9 +398,24 @@ struct CampusMapView: View {
     }
   }
 
-  /// 経路探索の進行状態に応じたバナー
+  /// ナビゲーション状態のバナー．
+  /// 大学WiFiで在校＋授業の時間帯のときは「受講中」を最優先で表示し，経路案内は出さない
   @ViewBuilder
   private var navigationStateBanner: some View {
+    if isAttendingOngoingClass, let lecture = nextLecture?.lecture {
+      StatusBanner(
+        systemImageName: "studentdesk",
+        message: "受講中：\(lecture.subjectName)（\(lecture.placeText)）",
+        accentColor: .green
+      )
+    } else {
+      routePhaseBanner
+    }
+  }
+
+  /// 経路探索の進行状態に応じたバナー
+  @ViewBuilder
+  private var routePhaseBanner: some View {
     switch viewModel.phase {
     case .calculatingRoute:
       ProgressBanner(message: "経路を探索しています…")

@@ -23,12 +23,11 @@ struct NextLectureCard: View {
     result.isOngoing ? "授業中" : "次の授業"
   }
 
-  /// 日時の表示文字列（例: 今日 2限 10:00〜11:00／月曜 2限 10:00〜11:00）
+  /// 日時の表示文字列（例: 今日 1〜2限 9:00〜11:00／月曜 2限 10:00〜11:00）．
+  /// 連続コマは1ブロックとして時限・時間帯をまとめて表示する
   private var scheduleText: String {
     let dayText = result.isToday ? "今日" : "\(result.lecture.weekday.shortName)曜"
-    let periodText = result.lecture.classPeriod?.displayName ?? "\(result.lecture.period)限"
-    let timeText = result.lecture.classPeriod?.timeRangeText ?? ""
-    return "\(dayText) \(periodText) \(timeText)"
+    return "\(dayText) \(result.periodText) \(result.timeRangeText)"
   }
 
   var body: some View {

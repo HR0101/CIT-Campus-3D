@@ -6,6 +6,8 @@
 //
 
 import CoreLocation
+import Network
+import NetworkExtension
 import Observation
 
 /// 位置情報の取得状態を表す列挙型
@@ -35,6 +37,10 @@ final class LocationService: NSObject {
     static let desiredAccuracy: CLLocationAccuracy = kCLLocationAccuracyBest
     /// 5m以上移動した場合のみ更新を受け取る（バッテリー消費対策）
     static let distanceFilter: CLLocationDistance = 5.0
+    /// 採用する水平精度の上限（メートル．これより誤差の大きい測位は捨てて精度を保つ）
+    static let acceptableHorizontalAccuracy: CLLocationDistance = 65
+    /// 採用する測位の古さの上限（秒．これより古いキャッシュ測位は捨てる）
+    static let maxLocationAge: TimeInterval = 15
   }
 
   /// 最新の現在地（未取得の場合はnil）
@@ -47,7 +53,23 @@ final class LocationService: NSObject {
   /// trueのとき現在地が数百m〜数kmずれるため，正確な経路を出せない旨を案内する．
   private(set) var isReducedAccuracy: Bool = false
 
+  /// WiFiに接続中か（NWPathMonitorで判定．SSID権限は不要）
+  private(set) var isConnectedToWiFi = false
+
+  /// 接続中のWiFiのSSID（取得には Access WiFi Information 権限＝有料アカウントが必要．無料アカウントではnil）
+  private(set) var currentSSID: String?
+
+  /// 大学のWiFiとみなすSSIDの集合（実機の優先ネットワーク一覧で確認した千葉工大の構内SSID）．
+  /// CIT-ap1x はWPA2 Enterprise(802.1X)の本格構内網，CIT_Wi-Fi も構内網．
+  /// eduroamはCITの一覧に無く，他大学のeduroamを誤って在校判定しないため含めない．
+  /// 権限が無くSSIDが取れない環境では使われず，WiFi接続＋GPSキャンパス圏内で代替判定する
+  static let universitySSIDs: Set<String> = ["CIT_Wi-Fi", "CIT-ap1x"]
+
   private let locationManager = CLLocationManager()
+
+  /// WiFi接続状態の監視（権限不要でインターフェース種別のみ判定）
+  private let pathMonitor = NWPathMonitor()
+  private let pathMonitorQueue = DispatchQueue(label: "campus.wifi.path-monitor")
 
   /// 位置更新を稼働中か（多重start/stopの抑止）
   private var isUpdating = false
@@ -63,6 +85,11 @@ final class LocationService: NSObject {
     // （バックグラウンドではstopUpdating()で明示的に停止するため常時稼働にはならない）
     locationManager.pausesLocationUpdatesAutomatically = false
     updateAccuracy()
+    startWiFiMonitoring()
+  }
+
+  deinit {
+    pathMonitor.cancel()
   }
 
   /// 位置情報の利用許可を確認し，現在地の取得を開始する（多重呼び出しに対して冪等）
@@ -95,7 +122,49 @@ final class LocationService: NSObject {
     }
   }
 
+  /// 指定キャンパスの構内にいるか（WiFiを用いた在校判定）．
+  /// SSIDが取得できる環境（権限あり）では大学SSIDとの照合を正とし，
+  /// 取得できない環境（無料アカウント等）はWiFi接続＋直近GPSのキャンパス圏内で代替判定する．
+  /// - Parameter campus: 判定対象のキャンパス
+  /// - Returns: 構内にいるとみなせるか
+  func isOnCampus(of campus: Campus) -> Bool {
+    if let ssid = currentSSID, !ssid.isEmpty {
+      // SSIDが取れる環境ではSSID照合を正とする（自宅WiFi等を確実に除外できる）
+      return Self.universitySSIDs.contains(ssid)
+    }
+    // フォールバック: WiFi接続中かつ直近GPSがキャンパス圏内なら在校とみなす
+    guard isConnectedToWiFi, let location = currentLocation else { return false }
+    return campus.isWithinVicinity(of: location.coordinate)
+  }
+
   // MARK: - Private
+
+  /// WiFi接続状態の監視を開始する
+  private func startWiFiMonitoring() {
+    pathMonitor.pathUpdateHandler = { [weak self] path in
+      let onWiFi = path.usesInterfaceType(.wifi)
+      Task { @MainActor in
+        self?.handleWiFiPathChange(onWiFi: onWiFi)
+      }
+    }
+    pathMonitor.start(queue: pathMonitorQueue)
+  }
+
+  /// WiFi接続状態の変化を反映し，可能ならSSIDを取得する
+  private func handleWiFiPathChange(onWiFi: Bool) {
+    isConnectedToWiFi = onWiFi
+    guard onWiFi else {
+      currentSSID = nil
+      return
+    }
+    // SSID取得は権限が必要．取れない（無料アカウント等）場合はnilのままフォールバック判定に委ねる
+    NEHotspotNetwork.fetchCurrent { [weak self] network in
+      let ssid = network?.ssid
+      Task { @MainActor in
+        self?.currentSSID = ssid
+      }
+    }
+  }
 
   /// 位置更新を開始する（稼働中なら何もしない）
   private func beginUpdatingIfNeeded() {
@@ -142,9 +211,16 @@ extension LocationService: CLLocationManagerDelegate {
     _ manager: CLLocationManager,
     didUpdateLocations locations: [CLLocation]
   ) {
-    guard let latestLocation = locations.last else { return }
+    // 精度が良く新しい測位だけを採用する（誤差の大きい点・古いキャッシュ点を弾いて精度を保つ）
+    let now = Date()
+    let acceptable = locations.last { location in
+      location.horizontalAccuracy >= 0
+        && location.horizontalAccuracy <= LocationConstants.acceptableHorizontalAccuracy
+        && now.timeIntervalSince(location.timestamp) <= LocationConstants.maxLocationAge
+    }
+    guard let acceptable else { return }
     Task { @MainActor in
-      self.currentLocation = latestLocation
+      self.currentLocation = acceptable
       self.fetchState = .available
     }
   }

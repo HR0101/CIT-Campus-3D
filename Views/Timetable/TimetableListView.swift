@@ -10,6 +10,7 @@
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
+import WidgetKit
 
 /// 時間割の表示形式
 private enum TimetableLayout: String {
@@ -26,6 +27,14 @@ struct TimetableListView: View {
   private struct ImportSession: Identifiable {
     let id = UUID()
     let drafts: [LectureDraft]
+  }
+
+  /// 一括削除の対象範囲
+  private enum DeleteScope {
+    /// 表示中の学期のみ
+    case currentSemester
+    /// すべての学期
+    case all
   }
 
   @Environment(\.modelContext) private var modelContext
@@ -45,6 +54,15 @@ struct TimetableListView: View {
 
   /// ファイル選択ダイアログの表示フラグ
   @State private var isShowingFileImporter = false
+
+  /// ポータル取り込み画面の表示フラグ
+  @State private var isShowingPortalImport = false
+
+  /// ポータル画面を閉じた後にファイル選択を開くか（ポータル画面でファイル取込が選ばれた時）
+  @State private var shouldOpenFileImporterAfterPortal = false
+
+  /// 一括削除の確認対象（非nilで確認ダイアログを表示）
+  @State private var deleteScope: DeleteScope?
 
   /// 解析済みのインポートセッション（非nilでプレビューを表示）
   @State private var importSession: ImportSession?
@@ -103,6 +121,9 @@ struct TimetableListView: View {
       .navigationTitle("時間割")
       .toolbar {
         ToolbarItem(placement: .topBarLeading) {
+          CloudSyncIndicator()
+        }
+        ToolbarItem(placement: .topBarLeading) {
           Button {
             withAnimation(.easeInOut(duration: 0.2)) {
               layout = (layout == .list) ? .grid : .list
@@ -113,13 +134,41 @@ struct TimetableListView: View {
           }
           .accessibilityLabel(layout == .list ? "表形式で表示" : "リスト形式で表示")
         }
+        if !lectures.isEmpty {
+          ToolbarItem(placement: .topBarLeading) {
+            Menu {
+              Button(role: .destructive) {
+                deleteScope = .currentSemester
+              } label: {
+                Label("\(selectedSemester.displayName)を削除", systemImage: "trash")
+              }
+              Button(role: .destructive) {
+                deleteScope = .all
+              } label: {
+                Label("すべて削除", systemImage: "trash")
+              }
+            } label: {
+              Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityLabel("一括削除")
+          }
+        }
         ToolbarItem(placement: .primaryAction) {
-          Button {
-            isShowingFileImporter = true
+          Menu {
+            Button {
+              isShowingPortalImport = true
+            } label: {
+              Label("ポータルから取り込む", systemImage: "globe")
+            }
+            Button {
+              isShowingFileImporter = true
+            } label: {
+              Label("ファイルから取り込む（Excel / PDF）", systemImage: "doc")
+            }
           } label: {
             Image(systemName: "square.and.arrow.down")
           }
-          .accessibilityLabel("ファイルからインポート")
+          .accessibilityLabel("時間割を取り込む")
         }
         ToolbarItem(placement: .primaryAction) {
           Button {
@@ -145,10 +194,42 @@ struct TimetableListView: View {
       .sheet(isPresented: $isShowingAddSheet) {
         AddLectureView()
       }
+      .fullScreenCover(isPresented: $isShowingPortalImport, onDismiss: {
+        // ポータル画面で「ファイルから取り込む」が選ばれていたら，閉じた後にファイル選択を開く
+        if shouldOpenFileImporterAfterPortal {
+          shouldOpenFileImporterAfterPortal = false
+          isShowingFileImporter = true
+        }
+      }) {
+        PortalImportView(
+          onSave: { drafts, replaceExisting in
+            saveImportedDrafts(drafts, replaceExisting: replaceExisting)
+          },
+          onUseFileImport: {
+            shouldOpenFileImporterAfterPortal = true
+          }
+        )
+      }
       .alert(errorTitle, isPresented: $isShowingErrorAlert) {
         Button("OK", role: .cancel) {}
       } message: {
         Text(errorMessage)
+      }
+      .confirmationDialog(
+        "時間割を削除",
+        isPresented: Binding(
+          get: { deleteScope != nil },
+          set: { if !$0 { deleteScope = nil } }
+        ),
+        titleVisibility: .visible,
+        presenting: deleteScope
+      ) { scope in
+        Button(deleteButtonLabel(for: scope), role: .destructive) {
+          performBulkDelete(scope)
+        }
+        Button("キャンセル", role: .cancel) { deleteScope = nil }
+      } message: { scope in
+        Text(deleteMessage(for: scope))
       }
     }
   }
@@ -172,7 +253,7 @@ struct TimetableListView: View {
     ContentUnavailableView {
       Label("\(selectedSemester.displayName)の時間割が未登録です", systemImage: "calendar.badge.plus")
     } description: {
-      Text("右上の取り込みボタンから，ポータルでダウンロードした学生時間割表（.xlsx / .pdf）を読み込めます．＋ボタンで1件ずつの手動追加もできます．")
+      Text("右上の取り込みボタンから，大学ポータルに直接ログインして取り込むか，ポータルでダウンロードした学生時間割表（.xlsx / .pdf）を読み込めます．＋ボタンで1件ずつの手動追加もできます．")
     }
   }
 
@@ -231,6 +312,8 @@ struct TimetableListView: View {
     }
     do {
       try modelContext.save()
+      // 時間割が変わったのでホーム／ロック画面のウィジェットを更新する
+      WidgetCenter.shared.reloadAllTimelines()
       // インポートした学期を表示する（前期があれば前期を優先）
       if let firstSemester = drafts.map(\.semester).min(by: { $0.rawValue < $1.rawValue }) {
         selectedSemester = firstSemester
@@ -247,6 +330,8 @@ struct TimetableListView: View {
     }
     do {
       try modelContext.save()
+      // 時間割が変わったのでホーム／ロック画面のウィジェットを更新する
+      WidgetCenter.shared.reloadAllTimelines()
     } catch {
       showError(title: "削除に失敗しました", message: error.localizedDescription)
     }
@@ -257,8 +342,52 @@ struct TimetableListView: View {
     modelContext.delete(lecture)
     do {
       try modelContext.save()
+      // 時間割が変わったのでホーム／ロック画面のウィジェットを更新する
+      WidgetCenter.shared.reloadAllTimelines()
     } catch {
       showError(title: "削除に失敗しました", message: error.localizedDescription)
+    }
+  }
+
+  /// 指定範囲の授業を一括削除する
+  private func performBulkDelete(_ scope: DeleteScope) {
+    let targets: [Lecture]
+    switch scope {
+    case .currentSemester:
+      targets = filteredLectures
+    case .all:
+      targets = lectures
+    }
+    for lecture in targets {
+      modelContext.delete(lecture)
+    }
+    do {
+      try modelContext.save()
+      // 時間割が変わったのでホーム／ロック画面のウィジェットを更新する
+      WidgetCenter.shared.reloadAllTimelines()
+    } catch {
+      showError(title: "削除に失敗しました", message: error.localizedDescription)
+    }
+    deleteScope = nil
+  }
+
+  /// 一括削除の確認ボタンの文言（対象コマ数つき）
+  private func deleteButtonLabel(for scope: DeleteScope) -> String {
+    switch scope {
+    case .currentSemester:
+      return "\(selectedSemester.displayName)を削除（\(filteredLectures.count)コマ）"
+    case .all:
+      return "すべて削除（\(lectures.count)コマ）"
+    }
+  }
+
+  /// 一括削除の確認メッセージ
+  private func deleteMessage(for scope: DeleteScope) -> String {
+    switch scope {
+    case .currentSemester:
+      return "\(selectedSemester.displayName)の\(filteredLectures.count)コマを削除します．この操作は取り消せません．"
+    case .all:
+      return "登録されている全\(lectures.count)コマを削除します．この操作は取り消せません．"
     }
   }
 

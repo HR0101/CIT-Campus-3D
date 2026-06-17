@@ -108,7 +108,7 @@ final class NotificationService {
       // 通知時刻がすでに過ぎている授業はスキップする
       guard fireDate > now else { continue }
 
-      let periodName = result.lecture.classPeriod?.displayName ?? "\(result.lecture.period)限"
+      let periodName = result.periodText
       let dayText = result.isToday ? "今日" : "\(result.lecture.weekday.shortName)曜"
       let body = "\(dayText) \(periodName)「\(result.lecture.subjectName)」（\(result.lecture.placeText)）が\(startsInText)始まります．"
 

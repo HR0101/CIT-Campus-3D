@@ -8,6 +8,7 @@
 
 import SwiftData
 import SwiftUI
+import WidgetKit
 
 /// 授業の手動追加フォーム
 struct AddLectureView: View {
@@ -145,6 +146,8 @@ struct AddLectureView: View {
     modelContext.insert(lecture)
     do {
       try modelContext.save()
+      // 時間割が変わったのでホーム／ロック画面のウィジェットを更新する
+      WidgetCenter.shared.reloadAllTimelines()
       dismiss()
     } catch {
       saveErrorMessage = error.localizedDescription
