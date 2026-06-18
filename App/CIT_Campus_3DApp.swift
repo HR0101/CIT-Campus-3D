@@ -27,6 +27,9 @@ struct CIT_Campus_3DApp: App {
   /// iCloud同期の状態監視
   @State private var syncMonitor = CloudSyncMonitor()
 
+  /// CITポータル連携の認証情報ストア（Keychain）
+  @State private var portalCredentialStore = PortalCredentialStore()
+
   init() {
     do {
       // App Group導入前の旧ストアがあれば共有ストアへ一度だけ移行してから開く
@@ -54,6 +57,7 @@ struct CIT_Campus_3DApp: App {
       .environment(appSettings)
       .environment(notificationService)
       .environment(syncMonitor)
+      .environment(portalCredentialStore)
       // 外観設定（システム連動／ライト／ダーク）に従う．
       // .systemのときはnilを渡して端末（スマホ）のダーク／ライト設定に自動で従う
       .preferredColorScheme(appSettings.appearance.colorScheme)

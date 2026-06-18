@@ -13,6 +13,7 @@ struct SettingsView: View {
 
   @Environment(AppSettings.self) private var settings
   @Environment(NotificationService.self) private var notifications
+  @Environment(PortalCredentialStore.self) private var portalStore
 
   var body: some View {
     // @Observableの設定をToggle/Pickerへバインドするための束縛
@@ -44,6 +45,28 @@ struct SettingsView: View {
           Text("スケジュール")
         } footer: {
           Text("登録済みの授業期間・休講日です．「次の授業」の判定はこの学年暦に従い，休講日や長期休業中は授業を表示しません．")
+        }
+
+        // ポータル連携（時間割の自動入力）
+        Section {
+          NavigationLink {
+            PortalCredentialSetupView()
+          } label: {
+            Label {
+              VStack(alignment: .leading, spacing: 2) {
+                Text("CITポータル連携")
+                Text(portalStore.isRegistered ? "登録済み：\(portalStore.userID ?? "")" : "未登録")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            } icon: {
+              Image(systemName: "key.horizontal")
+            }
+          }
+        } header: {
+          Text("ポータル連携")
+        } footer: {
+          Text("ユーザーID・パスワード・ワンタイムパスワードのキーを登録すると，ポータルから取り込む際にログイン情報を自動入力します．認証情報はこの端末内にのみ保存します．")
         }
 
         // 経路表示

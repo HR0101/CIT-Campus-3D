@@ -85,10 +85,28 @@ final class PortalWebController {
   }
 }
 
-/// ポータルを表示するWebView（大学ドメインに遷移を限定する）
+/// ログイン画面へ注入する自動入力データ（JSONとしてJSへ渡す．毎回新しいOTPを含む）
+private struct PortalAutofillPayload: Encodable {
+  /// ユーザーID（MARINE User ID）
+  let uid: String
+  /// パスワード
+  let pwd: String
+  /// 現在時刻のワンタイムコード（6桁）
+  let otp: String
+  /// 統合認証(SSO)入口の自動クリックを許可するか（1回だけ）
+  let allowSSO: Bool
+  /// Keycloakログインの自動送信を許可するか（1回だけ）
+  let allowLogin: Bool
+  /// OTPの自動送信を許可するか（1回だけ）
+  let allowOTP: Bool
+}
+
+/// ポータルを表示するWebView（大学ドメインに遷移を限定し，登録済みなら自動ログインする）
 private struct PortalWebView: UIViewRepresentable {
 
   let controller: PortalWebController
+  /// 認証情報ストア（未登録なら自動入力は行わない）
+  let credentialStore: PortalCredentialStore
 
   func makeUIView(context: Context) -> WKWebView {
     let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
@@ -103,17 +121,24 @@ private struct PortalWebView: UIViewRepresentable {
   func updateUIView(_ webView: WKWebView, context: Context) {}
 
   func makeCoordinator() -> Coordinator {
-    Coordinator(controller: controller)
+    Coordinator(controller: controller, credentialStore: credentialStore)
   }
 
-  /// 遷移制限と状態反映を担うデリゲート
+  /// 遷移制限・状態反映・ログイン自動入力を担うデリゲート
   @MainActor
   final class Coordinator: NSObject, WKNavigationDelegate {
 
     private let controller: PortalWebController
+    private let credentialStore: PortalCredentialStore
 
-    init(controller: PortalWebController) {
+    // 自動送信は各ステップ1回だけ許可する（誤入力での再送信ループ＝アカウントロックを防ぐ）
+    private var attemptedSSO = false
+    private var attemptedLogin = false
+    private var attemptedOTP = false
+
+    init(controller: PortalWebController, credentialStore: PortalCredentialStore) {
       self.controller = controller
+      self.credentialStore = credentialStore
     }
 
     /// 大学ドメイン以外への遷移を遮断する
@@ -139,6 +164,7 @@ private struct PortalWebView: UIViewRepresentable {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
       controller.isLoading = false
       controller.currentHost = webView.url?.host ?? ""
+      runAutofillIfPossible(on: webView)
     }
 
     func webView(
@@ -147,6 +173,95 @@ private struct PortalWebView: UIViewRepresentable {
       withError error: Error
     ) {
       controller.isLoading = false
+    }
+
+    // MARK: - 自動入力
+
+    /// 登録済みの認証情報でログイン画面を自動入力する（未登録なら何もしない）
+    private func runAutofillIfPossible(on webView: WKWebView) {
+      guard credentialStore.isRegistered, let userID = credentialStore.userID else { return }
+
+      // OTPは時刻依存のため，注入の直前に毎回生成する
+      let payload = PortalAutofillPayload(
+        uid: userID,
+        pwd: credentialStore.loadPassword() ?? "",
+        otp: credentialStore.currentOTP() ?? "",
+        allowSSO: !attemptedSSO,
+        allowLogin: !attemptedLogin,
+        allowOTP: !attemptedOTP
+      )
+
+      guard
+        let data = try? JSONEncoder().encode(payload),
+        let json = String(data: data, encoding: .utf8)
+      else { return }
+
+      webView.evaluateJavaScript(Self.autofillScript(argumentJSON: json)) { result, _ in
+        guard let step = result as? String else { return }
+        MainActor.assumeIsolated {
+          // 自動送信したステップはフラグを立て，次回以降は入力のみ（再送信しない）
+          switch step {
+          case "sso_clicked": self.attemptedSSO = true
+          case "login_submitted": self.attemptedLogin = true
+          case "otp_submitted": self.attemptedOTP = true
+          default: break
+          }
+        }
+      }
+    }
+
+    /// 自動入力JS（ページ種別を判定し，該当欄を埋めて1回だけ送信する）
+    private static func autofillScript(argumentJSON: String) -> String {
+      """
+      (function(p){
+        function setVal(el, v){
+          if(!el || v == null || v === '') return false;
+          el.focus();
+          el.value = v;
+          el.dispatchEvent(new Event('input', {bubbles:true}));
+          el.dispatchEvent(new Event('change', {bubbles:true}));
+          return true;
+        }
+        // Keycloak: ワンタイムコード入力ページ
+        var otp = document.getElementById('otp');
+        if (otp) {
+          setVal(otp, p.otp);
+          if (p.allowOTP) {
+            var ob = document.getElementById('kc-login');
+            if (ob) { ob.click(); return 'otp_submitted'; }
+          }
+          return 'otp_filled';
+        }
+        // Keycloak: ユーザー名／パスワード入力ページ
+        var u = document.getElementById('username');
+        var pw = document.getElementById('password');
+        if (u && pw) {
+          setVal(u, p.uid);
+          setVal(pw, p.pwd);
+          if (p.allowLogin) {
+            var lb = document.getElementById('kc-login')
+              || document.querySelector('#kc-form-login [type=submit]');
+            if (lb) { lb.click(); return 'login_submitted'; }
+          }
+          return 'login_filled';
+        }
+        // UNIPAポータル: 統合認証(SSO)入口へ進む
+        var sso = document.querySelector('a[href*="ShibbolethAuthServlet"]');
+        if (sso) {
+          if (p.allowSSO) { sso.click(); return 'sso_clicked'; }
+          return 'sso_present';
+        }
+        // UNIPA直接ログインフォーム（フォールバック: 入力のみ・自動送信しない）
+        var uid = document.getElementById('loginForm:userId');
+        var upw = document.getElementById('loginForm:password');
+        if (uid && upw) {
+          setVal(uid, p.uid);
+          setVal(upw, p.pwd);
+          return 'unipa_filled';
+        }
+        return 'no_form';
+      })(\(argumentJSON));
+      """
     }
   }
 }
@@ -167,6 +282,7 @@ struct PortalImportView: View {
   var onUseFileImport: (() -> Void)?
 
   @Environment(\.dismiss) private var dismiss
+  @Environment(PortalCredentialStore.self) private var credentialStore
   @State private var controller = PortalWebController()
 
   /// 取り込んだドラフト（非nilでプレビューを表示）
@@ -182,7 +298,7 @@ struct PortalImportView: View {
     NavigationStack {
       VStack(spacing: 0) {
         hintBanner
-        PortalWebView(controller: controller)
+        PortalWebView(controller: controller, credentialStore: credentialStore)
       }
       .navigationTitle("ポータルから取り込み")
       .navigationBarTitleDisplayMode(.inline)
@@ -227,20 +343,40 @@ struct PortalImportView: View {
 
   private var hintBanner: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Label {
-        Text("ポータルにログイン → 時間割表のページを開いて「取り込む」を押してください．")
-          .font(.caption)
-      } icon: {
-        Image(systemName: "info.circle")
-          .foregroundStyle(.cyan)
-      }
+      if credentialStore.isRegistered {
+        // 認証情報が登録済み: 自動ログインが働く
+        Label {
+          Text("登録済みの認証情報で自動ログインします．OTP画面まで進んだら，時間割表のページを開いて「取り込む」を押してください．")
+            .font(.caption)
+        } icon: {
+          Image(systemName: "wand.and.stars")
+            .foregroundStyle(.cyan)
+        }
+      } else {
+        // 未登録: 従来どおり手動ログイン＋登録の案内
+        Label {
+          Text("ポータルにログイン → 時間割表のページを開いて「取り込む」を押してください．")
+            .font(.caption)
+        } icon: {
+          Image(systemName: "info.circle")
+            .foregroundStyle(.cyan)
+        }
 
-      Label {
-        Text("2段階認証は「パスキー」ではなく「ワンタイムパスワード」を選んでください．アプリ内ブラウザではパスキーは使えません．")
-          .font(.caption)
-      } icon: {
-        Image(systemName: "exclamationmark.triangle.fill")
-          .foregroundStyle(.orange)
+        Label {
+          Text("設定の「CITポータル連携」でID・パスワード・ワンタイムパスワードのキーを登録すると，次回から自動ログインできます．")
+            .font(.caption)
+        } icon: {
+          Image(systemName: "key.horizontal")
+            .foregroundStyle(.cyan)
+        }
+
+        Label {
+          Text("2段階認証は「パスキー」ではなく「ワンタイムパスワード」を選んでください．アプリ内ブラウザではパスキーは使えません．")
+            .font(.caption)
+        } icon: {
+          Image(systemName: "exclamationmark.triangle.fill")
+            .foregroundStyle(.orange)
+        }
       }
 
       // ワンタイムパスワード未設定者向け: ファイル取り込みへ切り替える導線
