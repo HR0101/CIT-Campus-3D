@@ -99,6 +99,8 @@ private struct PortalAutofillPayload: Encodable {
   let allowLogin: Bool
   /// OTPの自動送信を許可するか（1回だけ）
   let allowOTP: Bool
+  /// 認証方法の選択（パスキー/ワンタイムパスワード）でOTPを自動選択するか
+  let allowMethodSelect: Bool
 }
 
 /// ポータルを表示するWebView（大学ドメインに遷移を限定し，登録済みなら自動ログインする）
@@ -135,6 +137,8 @@ private struct PortalWebView: UIViewRepresentable {
     private var attemptedSSO = false
     private var attemptedLogin = false
     private var attemptedOTP = false
+    // 認証方法の選択（パスキー/OTP）のクリック回数（多段選択に備え数回まで許可）
+    private var methodSelectCount = 0
 
     init(controller: PortalWebController, credentialStore: PortalCredentialStore) {
       self.controller = controller
@@ -188,7 +192,8 @@ private struct PortalWebView: UIViewRepresentable {
         otp: credentialStore.currentOTP() ?? "",
         allowSSO: !attemptedSSO,
         allowLogin: !attemptedLogin,
-        allowOTP: !attemptedOTP
+        allowOTP: !attemptedOTP,
+        allowMethodSelect: methodSelectCount < 3
       )
 
       guard
@@ -204,6 +209,7 @@ private struct PortalWebView: UIViewRepresentable {
           case "sso_clicked": self.attemptedSSO = true
           case "login_submitted": self.attemptedLogin = true
           case "otp_submitted": self.attemptedOTP = true
+          case "otp_method_selected": self.methodSelectCount += 1
           default: break
           }
         }
@@ -231,6 +237,30 @@ private struct PortalWebView: UIViewRepresentable {
             if (ob) { ob.click(); return 'otp_submitted'; }
           }
           return 'otp_filled';
+        }
+        // Keycloak: 認証方法の選択（パスキー/ワンタイムパスワード）でワンタイムパスワードを自動選択する．
+        // ログイン欄もOTP欄も無い段階で，OTPの選択肢（無ければ「別の方法を試す」）を押す．
+        if (p.allowMethodSelect
+          && document.location.href.indexOf('/realms/') >= 0
+          && !document.getElementById('username') && !document.getElementById('password')) {
+          var clickables = Array.prototype.slice.call(
+            document.querySelectorAll('a, button, input[type=submit], input[type=button], [role=button], [onclick]')
+          );
+          var labelOf = function(el){
+            return (el.textContent || '') + ' ' + (el.value || '') + ' '
+              + (el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('title') || '');
+          };
+          var isPasskey = function(t){ return /パスキー|passkey|security ?key|セキュリティ ?キー|webauthn|生体|指紋|顔/i.test(t); };
+          var isOtp = function(t){ return /ワンタイム|認証アプリ|認証システム|authenticator|one.?time|\\bOTP\\b/i.test(t); };
+          var isAnother = function(t){ return /別の方法|他の方法|try another way|another way/i.test(t); };
+          var choice = clickables.find(function(el){ var t = labelOf(el); return isOtp(t) && !isPasskey(t); });
+          if (!choice) {
+            choice = clickables.find(function(el){ var t = labelOf(el); return isAnother(t) && !isPasskey(t); });
+          }
+          if (choice) {
+            (choice.closest('a,button,[onclick]') || choice).click();
+            return 'otp_method_selected';
+          }
         }
         // Keycloak: ユーザー名／パスワード入力ページ
         var u = document.getElementById('username');

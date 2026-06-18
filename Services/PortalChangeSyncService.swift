@@ -43,6 +43,7 @@ final class PortalChangeSyncService: NSObject, WKNavigationDelegate {
   @ObservationIgnored private var attemptedSSO = false
   @ObservationIgnored private var attemptedLogin = false
   @ObservationIgnored private var attemptedOTP = false
+  @ObservationIgnored private var methodSelectCount = 0
   @ObservationIgnored private var startedBoardFlow = false
   @ObservationIgnored private var timeoutTask: Task<Void, Never>?
 
@@ -85,6 +86,7 @@ final class PortalChangeSyncService: NSObject, WKNavigationDelegate {
     attemptedSSO = false
     attemptedLogin = false
     attemptedOTP = false
+    methodSelectCount = 0
     startedBoardFlow = false
     lastErrorMessage = nil
     status = .syncing
@@ -134,7 +136,8 @@ final class PortalChangeSyncService: NSObject, WKNavigationDelegate {
       otp: credentialStore.currentOTP() ?? "",
       allowSSO: !attemptedSSO,
       allowLogin: !attemptedLogin,
-      allowOTP: !attemptedOTP
+      allowOTP: !attemptedOTP,
+      allowMethodSelect: methodSelectCount < 3
     )
     guard
       let data = try? JSONEncoder().encode(payload),
@@ -155,6 +158,8 @@ final class PortalChangeSyncService: NSObject, WKNavigationDelegate {
       attemptedLogin = true
     case "otp_submitted":
       attemptedOTP = true
+    case "otp_method_selected":
+      methodSelectCount += 1
     case "login_filled":
       if attemptedLogin { fail("統合認証へのログインに失敗しました．ID・パスワードを確認してください．") }
     case "otp_filled":
