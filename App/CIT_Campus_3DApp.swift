@@ -30,6 +30,12 @@ struct CIT_Campus_3DApp: App {
   /// CITポータル連携の認証情報ストア（Keychain）
   @State private var portalCredentialStore = PortalCredentialStore()
 
+  /// manabaのバックグラウンド同期サービス
+  @State private var manabaSyncService = ManabaSyncService()
+
+  /// ポータル「時間割変更」（休講・補講）のバックグラウンド同期サービス
+  @State private var portalChangeSyncService = PortalChangeSyncService()
+
   init() {
     do {
       // App Group導入前の旧ストアがあれば共有ストアへ一度だけ移行してから開く
@@ -58,6 +64,8 @@ struct CIT_Campus_3DApp: App {
       .environment(notificationService)
       .environment(syncMonitor)
       .environment(portalCredentialStore)
+      .environment(manabaSyncService)
+      .environment(portalChangeSyncService)
       // 外観設定（システム連動／ライト／ダーク）に従う．
       // .systemのときはnilを渡して端末（スマホ）のダーク／ライト設定に自動で従う
       .preferredColorScheme(appSettings.appearance.colorScheme)

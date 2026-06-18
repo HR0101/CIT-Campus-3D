@@ -98,7 +98,7 @@ struct PortalCredentialSetupView: View {
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
       SecureField("パスワード", text: $password)
-      TextField("ワンタイムパスワードのキー（base32）", text: $totpSecret)
+      TextField("ワンタイムパスワードのキー（base32・任意）", text: $totpSecret)
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .font(.system(.body, design: .monospaced))
@@ -113,11 +113,11 @@ struct PortalCredentialSetupView: View {
           Text(store.isRegistered ? "認証情報を更新" : "保存")
         }
       }
-      .disabled(userID.isEmpty || password.isEmpty || totpSecret.isEmpty)
+      .disabled(userID.isEmpty || password.isEmpty)
     } header: {
       Text("認証情報")
     } footer: {
-      Text("3項目すべてを入力して保存してください．キーはスペースやハイフンが含まれていても自動で除去します．")
+      Text("ユーザーID・パスワードは必須です．ワンタイムパスワードのキーは任意で，入力するとポータルのOTPも自動入力します（manabaの課題取得はID・パスワードだけで動きます）．キーはスペースやハイフンが含まれていても自動で除去します．")
     }
   }
 

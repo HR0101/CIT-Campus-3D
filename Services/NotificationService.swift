@@ -23,6 +23,10 @@ final class NotificationService {
     static let classReminderPrefix = "class-reminder-"
     /// 出発リマインダーの通知ID
     static let departureReminderID = "departure-reminder"
+    /// 課題リマインダーをまとめて予約する最大件数
+    static let maxAssignmentReminders = 16
+    /// 課題リマインダーの通知ID接頭辞
+    static let assignmentReminderPrefix = "assignment-reminder-"
   }
 
   /// 現在の通知許可状態
@@ -65,8 +69,9 @@ final class NotificationService {
     departureTravelTime: TimeInterval?,
     settings: AppSettings
   ) {
-    // 常に作り直す方式のため，まず既存の予約を消す
-    center.removeAllPendingNotificationRequests()
+    // 常に作り直す方式のため，まず授業・出発の予約だけを消す
+    // （課題リマインダーは別系統なので消さない）
+    center.removePendingNotificationRequests(withIdentifiers: classReminderIdentifiers())
 
     // 許可されていない場合は何も予約しない
     guard authorizationStatus == .authorized || authorizationStatus == .provisional else {
@@ -91,7 +96,74 @@ final class NotificationService {
     }
   }
 
+  /// 課題の締切リマインダーを予約し直す（授業リマインダーとは独立に管理する）
+  /// - Parameters:
+  ///   - assignments: 取り込み済みの課題（未完了・締切が未来のものを対象にする）
+  ///   - settings: ユーザー設定
+  func rescheduleAssignmentReminders(assignments: [Assignment], settings: AppSettings) {
+    // 課題リマインダーの予約だけを消す
+    center.removePendingNotificationRequests(withIdentifiers: assignmentReminderIdentifiers())
+
+    guard authorizationStatus == .authorized || authorizationStatus == .provisional else {
+      return
+    }
+    guard settings.enableAssignmentReminder else { return }
+
+    let now = Date()
+    let offsetSeconds = Double(settings.assignmentReminderOffsetHours) * 3600
+
+    // 未完了・締切が未来の課題を，締切の早い順に並べる
+    let targets = assignments
+      .filter { !$0.isDone }
+      .compactMap { assignment -> (Assignment, Date)? in
+        guard let due = assignment.dueDate, due > now else { return nil }
+        return (assignment, due)
+      }
+      .sorted { $0.1 < $1.1 }
+      .prefix(NotificationConstants.maxAssignmentReminders)
+
+    for (index, pair) in targets.enumerated() {
+      let (assignment, due) = pair
+      let fireDate = due.addingTimeInterval(-offsetSeconds)
+      // 通知時刻がすでに過ぎている課題はスキップする
+      guard fireDate > now else { continue }
+
+      let dueText = assignmentDueText(due)
+      let courseText = assignment.courseName.isEmpty ? "" : "（\(assignment.courseName)）"
+      let body = "課題「\(assignment.title)」\(courseText)の締切は \(dueText) です．"
+
+      scheduleNotification(
+        identifier: "\(NotificationConstants.assignmentReminderPrefix)\(index)",
+        title: "課題の締切が近づいています",
+        body: body,
+        fireDate: fireDate
+      )
+    }
+  }
+
   // MARK: - Private
+
+  /// 授業・出発リマインダーの通知ID一覧（限定削除に使う）
+  private func classReminderIdentifiers() -> [String] {
+    var identifiers = (0..<NotificationConstants.maxClassReminders)
+      .map { "\(NotificationConstants.classReminderPrefix)\($0)" }
+    identifiers.append(NotificationConstants.departureReminderID)
+    return identifiers
+  }
+
+  /// 課題リマインダーの通知ID一覧（限定削除に使う）
+  private func assignmentReminderIdentifiers() -> [String] {
+    (0..<NotificationConstants.maxAssignmentReminders)
+      .map { "\(NotificationConstants.assignmentReminderPrefix)\($0)" }
+  }
+
+  /// 課題の締切表示文字列（例: 6/24 17:00）
+  private func assignmentDueText(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "ja_JP")
+    formatter.dateFormat = "M/d HH:mm"
+    return formatter.string(from: date)
+  }
 
   /// 授業前リマインダーを予約する
   private func scheduleClassReminders(

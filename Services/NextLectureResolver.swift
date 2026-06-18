@@ -272,4 +272,45 @@ struct NextLectureResolver {
       return Semester.current(on: day, calendar: calendar)
     }
   }
+
+  /// 休講（ClassChange.canceled）に該当する授業を「次の授業」候補から除外する．
+  /// 日付（同日）・科目名（部分一致）・時限（重なり）の3点が一致したものを休講とみなす．
+  /// - Parameters:
+  ///   - results: resolveUpcoming等で得た候補
+  ///   - changes: 取り込み済みの時間割変更
+  ///   - calendar: 判定に使うカレンダー
+  /// - Returns: 休講分を除いた候補
+  func removingCancellations(
+    _ results: [NextLectureResult],
+    changes: [ClassChange],
+    calendar: Calendar = .current
+  ) -> [NextLectureResult] {
+    let cancellations = changes.filter { $0.type == .canceled && $0.date != nil }
+    guard !cancellations.isEmpty else { return results }
+
+    return results.filter { result in
+      !cancellations.contains { isCancellation($0, matches: result, calendar: calendar) }
+    }
+  }
+
+  /// 休講1件が候補1件に一致するか（同日・科目部分一致・時限重なり）
+  private func isCancellation(
+    _ change: ClassChange,
+    matches result: NextLectureResult,
+    calendar: Calendar
+  ) -> Bool {
+    guard let changeDate = change.date else { return false }
+    // 同じ日か
+    guard calendar.isDate(changeDate, inSameDayAs: result.startDate) else { return false }
+    // 科目名の部分一致（インポート時に整形された授業名と本文の科目名は表記差があるため双方向に確認）
+    let subject = result.lecture.subjectName.trimmingCharacters(in: .whitespaces)
+    guard !subject.isEmpty,
+      change.subjectName.contains(subject) || subject.contains(change.subjectName)
+    else { return false }
+    // 時限の重なり（休講側に時限情報が無ければ同日・同科目で休講とみなす）
+    let changePeriods = Set(change.periods)
+    guard !changePeriods.isEmpty else { return true }
+    let resultPeriods = Set(result.startPeriod...max(result.startPeriod, result.endPeriod))
+    return !resultPeriods.isDisjoint(with: changePeriods)
+  }
 }

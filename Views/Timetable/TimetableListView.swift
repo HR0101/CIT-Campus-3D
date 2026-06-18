@@ -46,6 +46,10 @@ struct TimetableListView: View {
   ])
   private var lectures: [Lecture]
 
+  /// 全課題（締切の早い順）
+  @Query(sort: \Assignment.dueDate)
+  private var assignments: [Assignment]
+
   /// 表示中の学期（初期値は現在の学期）
   @State private var selectedSemester: Semester = .current(on: Date())
 
@@ -84,6 +88,21 @@ struct TimetableListView: View {
     lectures.filter { $0.semester == selectedSemester }
   }
 
+  /// 未完了の課題
+  private var activeAssignments: [Assignment] {
+    assignments.filter { !$0.isDone }
+  }
+
+  /// 締切が未来の未完了課題（締切の早い順）
+  private var upcomingAssignments: [Assignment] {
+    activeAssignments
+      .filter { assignment in
+        guard let due = assignment.dueDate else { return false }
+        return due >= Date()
+      }
+      .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+  }
+
   /// 曜日ごとにグループ化した時間割（授業がない曜日は除外）
   private var lecturesByWeekday: [(weekday: Weekday, lectures: [Lecture])] {
     Weekday.lectureDays.compactMap { day in
@@ -105,6 +124,9 @@ struct TimetableListView: View {
     NavigationStack {
       VStack(spacing: 0) {
         semesterPicker
+        if !activeAssignments.isEmpty {
+          assignmentSummary
+        }
         Group {
           if filteredLectures.isEmpty {
             emptyStateView
@@ -152,6 +174,22 @@ struct TimetableListView: View {
             }
             .accessibilityLabel("一括削除")
           }
+        }
+        ToolbarItem(placement: .topBarLeading) {
+          NavigationLink {
+            AssignmentListView()
+          } label: {
+            Image(systemName: "list.clipboard")
+          }
+          .accessibilityLabel("課題")
+        }
+        ToolbarItem(placement: .topBarLeading) {
+          NavigationLink {
+            ClassChangeListView()
+          } label: {
+            Image(systemName: "calendar.badge.exclamationmark")
+          }
+          .accessibilityLabel("休講・補講")
         }
         ToolbarItem(placement: .primaryAction) {
           Menu {
@@ -232,6 +270,58 @@ struct TimetableListView: View {
         Text(deleteMessage(for: scope))
       }
     }
+  }
+
+  // MARK: - 課題サマリ（時間割画面に統合）
+
+  /// 締切表示用フォーマッタ
+  private static let assignmentDueFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "ja_JP")
+    formatter.dateFormat = "M/d HH:mm"
+    return formatter
+  }()
+
+  /// 課題の件数と最短締切を示し，課題一覧へ遷移するカード
+  private var assignmentSummary: some View {
+    NavigationLink {
+      AssignmentListView()
+    } label: {
+      HStack(spacing: 12) {
+        Image(systemName: "list.clipboard")
+          .font(.title3)
+          .foregroundStyle(.tint)
+        VStack(alignment: .leading, spacing: 2) {
+          Text("未提出の課題 \(activeAssignments.count)件")
+            .font(.subheadline.bold())
+            .foregroundStyle(.primary)
+          if let next = upcomingAssignments.first, let due = next.dueDate {
+            Text("最短締切 \(Self.assignmentDueFormatter.string(from: due))・\(next.title)")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+          } else {
+            Text("締切が近い課題はありません")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+        }
+        Spacer(minLength: 0)
+        Image(systemName: "chevron.right")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      .padding(.horizontal, 12)
+      .padding(.vertical, 10)
+      .background(
+        RoundedRectangle(cornerRadius: 12)
+          .fill(Color.accentColor.opacity(0.12))
+      )
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .padding(.horizontal)
+    .padding(.bottom, 8)
   }
 
   // MARK: - 学期切り替え
@@ -570,6 +660,6 @@ struct TimetableGrid: View {
 
 #Preview {
   TimetableListView()
-    .modelContainer(for: Lecture.self, inMemory: true)
+    .modelContainer(for: [Lecture.self, Assignment.self], inMemory: true)
     .preferredColorScheme(.dark)
 }

@@ -15,11 +15,18 @@ import SwiftUI
 struct ContentView: View {
 
   @Environment(\.scenePhase) private var scenePhase
+  @Environment(\.modelContext) private var modelContext
   @Environment(AppSettings.self) private var settings
   @Environment(NotificationService.self) private var notifications
+  @Environment(PortalCredentialStore.self) private var credentialStore
+  @Environment(ManabaSyncService.self) private var manabaSync
+  @Environment(PortalChangeSyncService.self) private var portalChangeSync
 
   /// 全登録授業
   @Query private var lectures: [Lecture]
+
+  /// 取り込み済みの時間割変更（休講で「次の授業」を除外するために使う）
+  @Query private var classChanges: [ClassChange]
 
   /// 現在地サービス（マップと通知の両方で使うためルートビューが所有する）
   @State private var locationService = LocationService()
@@ -33,7 +40,9 @@ struct ContentView: View {
   var body: some View {
     // 毎分再評価して「次の授業」の切り替わりを自動で反映する
     TimelineView(.everyMinute) { context in
-      let upcoming = resolver.resolveUpcoming(from: lectures, now: context.date)
+      let resolved = resolver.resolveUpcoming(from: lectures, now: context.date)
+      // 休講に該当する授業を「次の授業」から除外する
+      let upcoming = resolver.removingCancellations(resolved, changes: classChanges)
       let nextLecture = upcoming.first
       let scheduleStatus = AcademicCalendar.current.scheduleStatus(
         on: context.date, calendar: .current
@@ -64,12 +73,36 @@ struct ContentView: View {
     .task {
       await prepareNotifications()
     }
+    .task {
+      // 起動時にCloudKit同期などで生じた重複（課題・時間割変更）を掃除する
+      try? AssignmentImporter.deduplicate(into: modelContext)
+      try? ClassChangeImporter.deduplicate(into: modelContext)
+      // 起動時にmanaba課題をバックグラウンド同期する（資格情報があり，前回から時間が経っていれば）
+      manabaSync.syncIfStale(
+        credentialStore: credentialStore,
+        modelContext: modelContext,
+        settings: settings,
+        notifications: notifications
+      )
+      // 起動時にポータルの休講・補講もバックグラウンド同期する（TOTP登録済みのときのみ）
+      portalChangeSync.syncIfStale(
+        credentialStore: credentialStore,
+        modelContext: modelContext
+      )
+    }
     .onChange(of: scenePhase) { _, phase in
       switch phase {
       case .active:
         // 復帰時に通知許可状態を取り直す（設定アプリでの変更を反映）．
         // 位置情報はマップタブのonAppearで開始するためここでは起動しない
         Task { await notifications.refreshAuthorizationStatus() }
+        // 復帰時にも前回から十分時間が経っていれば課題を同期する
+        manabaSync.syncIfStale(
+          credentialStore: credentialStore,
+          modelContext: modelContext,
+          settings: settings,
+          notifications: notifications
+        )
       case .background:
         // バックグラウンドでは位置情報を止めてバッテリーを節約する
         locationService.stopUpdating()

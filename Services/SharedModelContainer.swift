@@ -69,7 +69,10 @@ enum SharedModelContainer {
       // App Group未設定時（macOS等）はアプリ既定の場所を使う
       configuration = ModelConfiguration(cloudKitDatabase: cloudKitDatabase)
     }
-    return try ModelContainer(for: Lecture.self, configurations: configuration)
+    return try ModelContainer(
+      for: Lecture.self, Assignment.self, ClassChange.self,
+      configurations: configuration
+    )
   }
 
   /// 旧デフォルトストア（App Group導入前のアプリ既定の場所）から共有ストアへ一度だけ移行する．

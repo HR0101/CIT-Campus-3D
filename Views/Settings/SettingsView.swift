@@ -5,6 +5,7 @@
 //  経路表示・通知のオンオフを切り替える設定画面．
 //
 
+import SwiftData
 import SwiftUI
 import UIKit
 
@@ -14,6 +15,9 @@ struct SettingsView: View {
   @Environment(AppSettings.self) private var settings
   @Environment(NotificationService.self) private var notifications
   @Environment(PortalCredentialStore.self) private var portalStore
+
+  /// 課題（締切リマインダーの再予約に使う）
+  @Query private var assignments: [Assignment]
 
   var body: some View {
     // @Observableの設定をToggle/Pickerへバインドするための束縛
@@ -110,6 +114,22 @@ struct SettingsView: View {
           Text("今いる場所から次の講義棟までの徒歩時間を逆算し，出発すべき時刻に通知します．余裕時間を足すと，その分だけ早めに通知します．")
         }
 
+        // 課題の締切リマインダー
+        Section {
+          Toggle("課題の締切前に通知", isOn: $settings.enableAssignmentReminder)
+          if settings.enableAssignmentReminder {
+            Picker("通知タイミング", selection: $settings.assignmentReminderOffsetHours) {
+              ForEach(AppSettings.assignmentReminderOffsetOptions, id: \.self) { hours in
+                Text(assignmentOffsetLabel(hours)).tag(hours)
+              }
+            }
+          }
+        } header: {
+          Text("課題リマインダー")
+        } footer: {
+          Text("manabaから取り込んだ未提出課題の締切前に通知します．")
+        }
+
         // 通知が許可されていない場合の案内
         if isNotificationBlocked {
           Section {
@@ -136,6 +156,24 @@ struct SettingsView: View {
         Task { await requestAuthorizationIfNeeded() }
       }
     }
+    .onChange(of: settings.enableAssignmentReminder) { _, isOn in
+      Task {
+        if isOn { await requestAuthorizationIfNeeded() }
+        // トグル変更に合わせて課題リマインダーを予約し直す
+        notifications.rescheduleAssignmentReminders(assignments: assignments, settings: settings)
+      }
+    }
+    .onChange(of: settings.assignmentReminderOffsetHours) { _, _ in
+      notifications.rescheduleAssignmentReminders(assignments: assignments, settings: settings)
+    }
+  }
+
+  /// 課題リマインダーのタイミング表示（時間／日）
+  private func assignmentOffsetLabel(_ hours: Int) -> String {
+    if hours % 24 == 0 {
+      return "\(hours / 24)日前"
+    }
+    return "\(hours)時間前"
   }
 
   // MARK: - Private
@@ -169,6 +207,8 @@ struct SettingsView: View {
 
 #Preview {
   SettingsView()
+    .modelContainer(for: Assignment.self, inMemory: true)
     .environment(AppSettings())
     .environment(NotificationService())
+    .environment(PortalCredentialStore())
 }

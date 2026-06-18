@@ -53,8 +53,11 @@ final class PortalCredentialStore {
   /// 登録済みのユーザーID（表示用．未登録ならnil）
   private(set) var userID: String?
 
-  /// 認証情報が登録済みか
+  /// 認証情報が登録済みか（ユーザーID＋パスワードがあれば登録済み）
   var isRegistered: Bool { userID != nil }
+
+  /// TOTPシークレットが登録済みか（ポータルのOTP自動入力が可能か）
+  private(set) var hasTOTPSecret = false
 
   /// 最終同期時刻（表示用．機密でないためUserDefaultsに保存）
   private(set) var lastSyncDate: Date?
@@ -77,13 +80,16 @@ final class PortalCredentialStore {
   init() {
     // 起動時にKeychainから登録状態を読み込む（ユーザーIDのみメモリ保持．機密は都度取得）
     userID = (try? readString(account: Account.userID)) ?? nil
+    hasTOTPSecret = ((try? readString(account: Account.totpSecret)) ?? nil) != nil
     let stored = UserDefaults.standard.object(forKey: lastSyncKey) as? Date
     lastSyncDate = stored
   }
 
   // MARK: - 保存・取得・削除
 
-  /// 認証情報3点を保存する（空欄はエラー）
+  /// 認証情報を保存する．
+  /// ユーザーID・パスワードは必須．TOTPシークレットは任意（ポータルのOTP自動入力にだけ使う）で，
+  /// 空欄ならシークレットを保存しない（manabaはID＋パスワードのみで動くため）．
   func save(_ credentials: PortalCredentials) throws {
     let userID = credentials.userID.trimmingCharacters(in: .whitespacesAndNewlines)
     let password = credentials.password
@@ -91,11 +97,18 @@ final class PortalCredentialStore {
 
     guard !userID.isEmpty else { throw CredentialStoreError.emptyField("ユーザーID") }
     guard !password.isEmpty else { throw CredentialStoreError.emptyField("パスワード") }
-    guard !secret.isEmpty else { throw CredentialStoreError.emptyField("ワンタイムパスワードのキー") }
 
     try writeString(userID, account: Account.userID)
     try writeString(password, account: Account.password)
-    try writeString(secret, account: Account.totpSecret)
+
+    // シークレットは任意: 入力があれば保存，無ければ既存を削除する
+    if secret.isEmpty {
+      try delete(account: Account.totpSecret)
+      hasTOTPSecret = false
+    } else {
+      try writeString(secret, account: Account.totpSecret)
+      hasTOTPSecret = true
+    }
 
     self.userID = userID
   }
@@ -129,6 +142,7 @@ final class PortalCredentialStore {
     try delete(account: Account.totpSecret)
     UserDefaults.standard.removeObject(forKey: lastSyncKey)
     userID = nil
+    hasTOTPSecret = false
     lastSyncDate = nil
   }
 
