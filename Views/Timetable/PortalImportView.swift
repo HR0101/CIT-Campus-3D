@@ -231,12 +231,17 @@ private struct PortalWebView: UIViewRepresentable {
         // Keycloak: ワンタイムコード入力ページ
         var otp = document.getElementById('otp');
         if (otp) {
-          setVal(otp, p.otp);
-          if (p.allowOTP) {
-            var ob = document.getElementById('kc-login');
-            if (ob) { ob.click(); return 'otp_submitted'; }
+          var otpFilled = setVal(otp, p.otp);
+          if (otpFilled) {
+            if (p.allowOTP) {
+              var ob = document.getElementById('kc-login');
+              if (ob) { ob.click(); return 'otp_submitted'; }
+            }
+            return 'otp_filled';
           }
-          return 'otp_filled';
+          // OTPキー未登録で自動入力できない場合は，空のまま送信せず入力欄にフォーカスして手入力を促す
+          otp.focus();
+          return 'otp_manual';
         }
         // Keycloak: 認証方法の選択（パスキー/ワンタイムパスワード）でワンタイムパスワードを自動選択する．
         // ログイン欄もOTP欄も無い段階で，OTPの選択肢（無ければ「別の方法を試す」）を押す．
@@ -376,11 +381,21 @@ struct PortalImportView: View {
       if credentialStore.isRegistered {
         // 認証情報が登録済み: 自動ログインが働く
         Label {
-          Text("登録済みの認証情報で自動ログインします．OTP画面まで進んだら，時間割表のページを開いて「取り込む」を押してください．")
+          Text("登録済みの認証情報で自動ログインします．時間割表のページを開いて「取り込む」を押してください．")
             .font(.caption)
         } icon: {
           Image(systemName: "wand.and.stars")
             .foregroundStyle(.cyan)
+        }
+        if !credentialStore.hasTOTPSecret {
+          // OTPキー未登録: 6桁だけ手入力が必要なことを案内する
+          Label {
+            Text("ID・パスワードと認証方法の選択までは自動で進みます．ワンタイムパスワードの6桁だけご自身で入力してください．設定の「CITポータル連携」でキーを登録すると，6桁も自動になります．")
+              .font(.caption)
+          } icon: {
+            Image(systemName: "key.horizontal")
+              .foregroundStyle(.orange)
+          }
         }
       } else {
         // 未登録: 従来どおり手動ログイン＋登録の案内

@@ -354,7 +354,12 @@ struct TimetableListView: View {
       ForEach(lecturesByWeekday, id: \.weekday) { group in
         Section("\(group.weekday.shortName)曜日") {
           ForEach(group.lectures) { lecture in
-            LectureRow(lecture: lecture)
+            LectureRow(
+              lecture: lecture,
+              assignments: AssignmentLectureMatcher.activeAssignments(
+                for: lecture, in: assignments
+              )
+            )
           }
           .onDelete { offsets in
             deleteLectures(group.lectures, at: offsets)
@@ -367,7 +372,7 @@ struct TimetableListView: View {
   // MARK: - 表形式（曜日×時限のグリッド）
 
   private var timetableGrid: some View {
-    TimetableGrid(lectures: filteredLectures) { lecture in
+    TimetableGrid(lectures: filteredLectures, assignments: assignments) { lecture in
       deleteLecture(lecture)
     }
   }
@@ -494,6 +499,9 @@ struct LectureRow: View {
 
   let lecture: Lecture
 
+  /// この授業に紐づく未提出課題（締切の早い順．無ければ空）
+  var assignments: [Assignment] = []
+
   /// 時限の表示文字列（例: 2限 10:00〜11:00）
   private var periodText: String {
     guard let classPeriod = lecture.classPeriod else {
@@ -502,10 +510,21 @@ struct LectureRow: View {
     return "\(classPeriod.displayName) \(classPeriod.timeRangeText)"
   }
 
+  /// 最短締切の表示文字列（例: 6/25 締切．締切不明・課題なしならnil）
+  private var nearestDueText: String? {
+    guard let due = assignments.first?.dueDate else { return nil }
+    return "\(Self.dueFormatter.string(from: due)) 締切"
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      Text(lecture.subjectName)
-        .font(.headline)
+      HStack(spacing: 8) {
+        Text(lecture.subjectName)
+          .font(.headline)
+        if !assignments.isEmpty {
+          AssignmentBadge(count: assignments.count)
+        }
+      }
 
       HStack(spacing: 12) {
         Label(periodText, systemImage: "clock")
@@ -516,8 +535,54 @@ struct LectureRow: View {
       }
       .font(.caption)
       .foregroundStyle(.secondary)
+
+      // 課題がある場合は最短締切を補足表示する
+      if let nearestDueText {
+        Label(nearestDueText, systemImage: "calendar.badge.clock")
+          .font(.caption)
+          .foregroundStyle(.orange)
+      }
     }
     .padding(.vertical, 2)
+  }
+
+  /// 締切表示用フォーマッタ（M/d）
+  private static let dueFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "ja_JP")
+    formatter.dateFormat = "M/d"
+    return formatter
+  }()
+}
+
+/// 「課題あり」を示すバッジ（未提出件数つき）．
+/// 時間割のリスト行とグリッドセルの両方で共通利用する．
+struct AssignmentBadge: View {
+
+  /// 未提出課題の件数
+  let count: Int
+
+  /// 小型表示（グリッドセルの隅に重ねる用）．既定は通常表示
+  var compact = false
+
+  var body: some View {
+    if compact {
+      Text("\(count)")
+        .font(.system(size: 10, weight: .bold))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
+        .background(Capsule().fill(Color.orange))
+        .accessibilityLabel("課題\(count)件")
+    } else {
+      Label("課題\(count)", systemImage: "list.clipboard.fill")
+        .font(.caption2.bold())
+        .foregroundStyle(.white)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Capsule().fill(Color.orange))
+        .accessibilityLabel("課題\(count)件")
+    }
   }
 }
 
@@ -526,6 +591,8 @@ struct TimetableGrid: View {
 
   /// 表示する授業（学期で絞り込み済み）
   let lectures: [Lecture]
+  /// 課題ありバッジの判定に使う全課題（未提出のみ内部で抽出する）
+  var assignments: [Assignment] = []
   /// セルから授業を削除するときのコールバック
   let onDelete: (Lecture) -> Void
 
@@ -621,6 +688,9 @@ struct TimetableGrid: View {
   private func cell(day: Weekday, period: Int) -> some View {
     let cellLectures = lectures.filter { $0.weekday == day && $0.period == period }
     if let lecture = cellLectures.first {
+      // このコマの授業に紐づく未提出課題の件数
+      let assignmentCount = AssignmentLectureMatcher
+        .activeAssignments(for: lecture, in: assignments).count
       Button {
         lectureToDelete = lecture
       } label: {
@@ -648,6 +718,13 @@ struct TimetableGrid: View {
           RoundedRectangle(cornerRadius: GridConstants.cornerRadius)
             .fill(Color.accentColor.opacity(0.18))
         )
+        // 課題があるコマは右上にバッジを重ねて一目で分かるようにする
+        .overlay(alignment: .topTrailing) {
+          if assignmentCount > 0 {
+            AssignmentBadge(count: assignmentCount, compact: true)
+              .padding(2)
+          }
+        }
       }
       .buttonStyle(.plain)
     } else {

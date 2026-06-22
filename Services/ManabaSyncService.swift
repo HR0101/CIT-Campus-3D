@@ -116,8 +116,9 @@ final class ManabaSyncService: NSObject, WKNavigationDelegate {
     lastErrorMessage = nil
     status = .syncing
 
-    // 不可視のWebViewを生成してログインページを読み込む
-    let configuration = WKWebViewConfiguration()
+    // 不可視のWebViewを生成してログインページを読み込む．
+    // フォーカスによるソフトキーボードの一瞬表示を防ぐ設定を使う
+    let configuration = PortalAuth.makeHeadlessWebViewConfiguration()
     let webView = WKWebView(
       frame: CGRect(x: 0, y: 0, width: 1024, height: 1366),
       configuration: configuration

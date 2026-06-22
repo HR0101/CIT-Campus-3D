@@ -53,12 +53,22 @@ enum Campus: Int, CaseIterable, Identifiable, Codable, Hashable {
   }
 
   /// 「大学周辺」とみなす中心からの半径（メートル）．
-  /// 最寄り駅（津田沼駅・新習志野駅）からの徒歩経路もカバーできるよう広めに取る
+  /// WiFiが使えないときの在校判定（受講中の推定）フォールバックに使うため広めに取る
   static let vicinityRadiusMeters: CLLocationDistance = 1_500
+
+  /// 経路（次の授業までの徒歩時間）表示を有効にする，中心からの半径（メートル）．
+  /// 「教室まで約N分」は実際にキャンパスへ近づいたときだけ意味があるため，在校判定の半径より狭く取る．
+  /// これにより，中心から1.5km圏内でも少し離れた自宅などでは授業前から徒歩時間を表示しない
+  static let routeVicinityRadiusMeters: CLLocationDistance = 500
 
   /// 指定座標がこのキャンパスの周辺（vicinityRadiusMeters以内）にあるか判定する
   func isWithinVicinity(of coordinate: CLLocationCoordinate2D) -> Bool {
     distanceMeters(from: coordinate) <= Self.vicinityRadiusMeters
+  }
+
+  /// 指定座標が経路表示の対象範囲（routeVicinityRadiusMeters以内）にあるか判定する
+  func isWithinRouteVicinity(of coordinate: CLLocationCoordinate2D) -> Bool {
+    distanceMeters(from: coordinate) <= Self.routeVicinityRadiusMeters
   }
 
   /// 指定座標からキャンパス中心までの距離（メートル）

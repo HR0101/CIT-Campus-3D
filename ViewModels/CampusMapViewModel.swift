@@ -171,9 +171,10 @@ final class CampusMapViewModel {
       return
     }
 
-    // 大学周辺の判定（制限が無効なら常に範囲内とみなす）
+    // 経路表示の範囲判定（制限が無効なら常に範囲内とみなす）．
+    // 在校判定より狭い routeVicinityRadius を使い，少し離れた自宅などでは徒歩時間を出さない
     let isWithinCampus = !restrictToCampus
-      || building.campus.isWithinVicinity(of: location.coordinate)
+      || building.campus.isWithinRouteVicinity(of: location.coordinate)
     guard isWithinCampus else {
       // 範囲外では経路を出さない
       route = nil

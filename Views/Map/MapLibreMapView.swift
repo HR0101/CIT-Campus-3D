@@ -3,11 +3,11 @@
 //  CIT-Campus-3D
 //
 //  MapLibre（OpenFreeMapの無料OSMタイル）による3Dキャンパスマップ．
-//  構成は3層:
-//    1. ベース地図: OpenFreeMapのdarkスタイル（OSMベクタータイル）
-//    2. 周辺市街の3Dビル: タイルのbuildingレイヤをfill-extrusionで押し出し
-//    3. キャンパス8棟: OSM実測の外形ポリゴン（同梱GeoJSON）＋自前の高さデータで
-//       周辺よりも高忠実な3D表示にする
+//  構成は2層:
+//    1. ベース地図: OpenFreeMapのスタイル（OSMベクタータイル．道路・ラベルなど）
+//    2. キャンパスの建物: OSM実測の外形ポリゴン（同梱GeoJSON）＋自前の高さデータで3D表示する
+//  周辺市街のビルは，OSMタイルの建物とキャンパス棟がほぼ同一形状で二重に押し出されて
+//  Z-fighting（視点移動時のちらつき）を起こすため，あえて描画せず大学の建物だけを3Dにする．
 //
 
 import MapKit
@@ -30,12 +30,6 @@ struct MapLibreMapView: UIViewRepresentable {
     static func styleURL(for colorScheme: ColorScheme) -> URL? {
       colorScheme == .dark ? darkStyleURL : lightStyleURL
     }
-    /// タイル側ベクターソースのID（OpenFreeMapのスタイル定義に合わせる）
-    static let vectorSourceID = "openmaptiles"
-    /// タイル側のビルレイヤ名（OpenMapTilesスキーマ）
-    static let buildingSourceLayer = "building"
-    /// 周辺市街の3DビルレイヤのID
-    static let cityBuildingsLayerID = "city-3d-buildings"
     /// キャンパス棟のGeoJSONソースのID
     static let campusSourceID = "campus-buildings-source"
     /// キャンパス棟の3DレイヤのID
@@ -52,16 +46,9 @@ struct MapLibreMapView: UIViewRepresentable {
     static let cameraAnimationDuration: TimeInterval = 1.2
     // ベース地図の明暗に合わせて建物・経路の色を切り替える（ライト/ダークの2系統）．
     // ダークは暗いグレー基調，ライトはpositronの淡い背景でも塊が分かる明るめのグレーにする．
-    // city/campusの明度差（≒0.10〜0.16）を両モードで保ち，市街とキャンパス棟を区別する．
-    /// 周辺市街ビルの色（ダーク: ベース地図に馴染む暗いグレー）
-    static let cityBuildingColorDark = UIColor(white: 0.24, alpha: 1.0)
-    /// 周辺市街ビルの色（ライト: 明るいグレー）
-    static let cityBuildingColorLight = UIColor(white: 0.78, alpha: 1.0)
-    /// 周辺市街ビルの不透明度（透過すると視認性が落ちるため完全不透明にする）
-    static let cityBuildingOpacity: Float = 1.0
-    /// キャンパス棟の色（ダーク: 市街よりわずかに明るいグレーで区別）
+    /// キャンパス棟の色（ダーク: ベース地図から浮く明るめのグレー）
     static let campusBuildingColorDark = UIColor(white: 0.34, alpha: 1.0)
-    /// キャンパス棟の色（ライト: 市街よりやや暗いグレーで区別）
+    /// キャンパス棟の色（ライト: 淡い背景の上でも塊が分かる中明度のグレー）
     static let campusBuildingColorLight = UIColor(white: 0.62, alpha: 1.0)
     /// キャンパス棟の不透明度（完全不透明）
     static let campusBuildingOpacity: Float = 1.0
@@ -219,7 +206,6 @@ extension MapLibreMapView {
     /// スタイル読み込み完了後に3Dビル・経路レイヤを構築する
     func configureStyle(_ style: MLNStyle) {
       isStyleLoaded = true
-      addCityBuildingsLayer(to: style)
       addCampusBuildingsLayer(to: style)
       setupRouteLayer(in: style)
 
@@ -239,12 +225,6 @@ extension MapLibreMapView {
 
     // MARK: - Private（カラースキームに応じた色）
 
-    /// 周辺市街ビルの色（現在のカラースキームに対応）
-    private var cityBuildingColor: UIColor {
-      colorScheme == .dark
-        ? MapConstants.cityBuildingColorDark : MapConstants.cityBuildingColorLight
-    }
-
     /// キャンパス棟の色（現在のカラースキームに対応）
     private var campusBuildingColor: UIColor {
       colorScheme == .dark
@@ -262,33 +242,6 @@ extension MapLibreMapView {
     }
 
     // MARK: - Private（レイヤ構築）
-
-    /// 周辺市街の3Dビルレイヤ（タイルのbuildingレイヤを押し出し）を追加する
-    private func addCityBuildingsLayer(to style: MLNStyle) {
-      guard let source = style.source(withIdentifier: MapConstants.vectorSourceID) else {
-        return
-      }
-      let layer = MLNFillExtrusionStyleLayer(
-        identifier: MapConstants.cityBuildingsLayerID,
-        source: source
-      )
-      layer.sourceLayerIdentifier = MapConstants.buildingSourceLayer
-      layer.fillExtrusionHeight = NSExpression(forKeyPath: "render_height")
-      layer.fillExtrusionBase = NSExpression(forKeyPath: "render_min_height")
-      layer.fillExtrusionColor = NSExpression(forConstantValue: cityBuildingColor)
-      layer.fillExtrusionOpacity = NSExpression(
-        forConstantValue: MapConstants.cityBuildingOpacity
-      )
-
-      // 道路・線路など全ジオメトリの上，ラベルの下に挿入する．
-      // （OpenFreeMapのdarkスタイルは道路・線路レイヤがsymbolより後ろにあるため，
-      // 「最初のsymbolの下」に入れると線がビルを貫通して透過したように見える）
-      if let lastGeometryLayer = style.layers.last(where: { !($0 is MLNSymbolStyleLayer) }) {
-        style.insertLayer(layer, above: lastGeometryLayer)
-      } else {
-        style.addLayer(layer)
-      }
-    }
 
     /// キャンパス8棟の高忠実3Dレイヤ（同梱GeoJSON＋自前の高さ）を追加する
     private func addCampusBuildingsLayer(to style: MLNStyle) {
@@ -336,8 +289,9 @@ extension MapLibreMapView {
       groundLayer.predicate = NSPredicate(format: "kind == %@", "ground")
       groundLayer.fillColor = NSExpression(forConstantValue: groundColor)
       groundLayer.fillOpacity = NSExpression(forConstantValue: MapConstants.groundOpacity)
-      if let cityLayer = style.layer(withIdentifier: MapConstants.cityBuildingsLayerID) {
-        style.insertLayer(groundLayer, above: cityLayer)
+      // 道路など地物の上・ラベルの下に挿入する（街路名などのラベルが建物に隠れないようにする）
+      if let lastGeometryLayer = style.layers.last(where: { !($0 is MLNSymbolStyleLayer) }) {
+        style.insertLayer(groundLayer, above: lastGeometryLayer)
       } else {
         style.addLayer(groundLayer)
       }

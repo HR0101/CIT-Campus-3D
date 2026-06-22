@@ -8,9 +8,40 @@
 //
 
 import Foundation
+import WebKit
 
 /// ポータル自動ログインの共有定数・スクリプト
 enum PortalAuth {
+
+  /// 不可視（ヘッドレス）WebView用に，入力欄へのフォーカス＝ソフトキーボード表示を抑止する設定を作る．
+  /// 起動時の背景同期では画面を見せずにログインフォームを操作するため，フォームの autofocus 属性や
+  /// 自動入力JSの focus() によってソフトキーボードが一瞬表示されてしまう．これを防ぐために，
+  /// 「要素の focus() を無効化」「フォーカスが入った要素を即座に blur」するスクリプトを document 開始時に注入する．
+  /// 値の設定（el.value＝…）と input/change イベントはそのまま動くため，自動ログインの送信には影響しない．
+  /// なお，この抑止は不可視WebViewにのみ適用し，手入力が必要な可視のログイン画面には適用しない．
+  static func makeHeadlessWebViewConfiguration() -> WKWebViewConfiguration {
+    let configuration = WKWebViewConfiguration()
+    let source = """
+      (function(){
+        try {
+          if (window.HTMLElement && HTMLElement.prototype && HTMLElement.prototype.focus) {
+            HTMLElement.prototype.focus = function(){};
+          }
+        } catch (e) {}
+        document.addEventListener('focusin', function(e){
+          var t = e.target;
+          if (t && typeof t.blur === 'function') { t.blur(); }
+        }, true);
+      })();
+      """
+    let script = WKUserScript(
+      source: source,
+      injectionTime: .atDocumentStart,
+      forMainFrameOnly: false
+    )
+    configuration.userContentController.addUserScript(script)
+    return configuration
+  }
 
   /// 千葉工業大学ポータル（UNIVERSAL PASSPORT）のURL
   static let portalURL = URL(string: "https://portal.chibatech.ac.jp/uprx/")!
@@ -50,12 +81,17 @@ enum PortalAuth {
       // Keycloak: ワンタイムコード入力ページ
       var otp = document.getElementById('otp');
       if (otp) {
-        setVal(otp, p.otp);
-        if (p.allowOTP) {
-          var ob = document.getElementById('kc-login');
-          if (ob) { ob.click(); return 'otp_submitted'; }
+        var otpFilled = setVal(otp, p.otp);
+        if (otpFilled) {
+          if (p.allowOTP) {
+            var ob = document.getElementById('kc-login');
+            if (ob) { ob.click(); return 'otp_submitted'; }
+          }
+          return 'otp_filled';
         }
-        return 'otp_filled';
+        // OTPキー未登録で自動入力できない場合は，空のまま送信せず入力欄にフォーカスして手入力を促す
+        otp.focus();
+        return 'otp_manual';
       }
       // Keycloak: 認証方法の選択（パスキー/ワンタイムパスワード）でワンタイムパスワードを自動選択する
       if (p.allowMethodSelect

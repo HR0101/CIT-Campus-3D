@@ -144,6 +144,12 @@ struct CampusMapView: View {
         .padding(.trailing)
         .padding(.bottom, 56)
     }
+    .overlay(alignment: .bottomLeading) {
+      // OpenStreetMapデータの帰属表示（ODbL上，地図に常時表示が必要）
+      mapAttribution
+        .padding(.leading, 10)
+        .padding(.bottom, 56)
+    }
     .sheet(isPresented: $isPlacePickerPresented) {
       PlacePickerView(currentLocation: locationService.currentLocation) { place in
         manualDestination = place
@@ -320,6 +326,23 @@ struct CampusMapView: View {
         .background(.ultraThinMaterial, in: Circle())
     }
     .accessibilityLabel("現在地へ移動")
+  }
+
+  // MARK: - 地図データの帰属表示
+
+  /// OpenStreetMapの帰属表示（タップで著作権ページを開く）
+  private var mapAttribution: some View {
+    Button {
+      UIApplication.shared.open(AppMetadata.openStreetMapCopyrightURL)
+    } label: {
+      Text("© OpenStreetMap contributors")
+        .font(.system(size: 10))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(.ultraThinMaterial, in: Capsule())
+    }
+    .accessibilityLabel("地図データの著作権: OpenStreetMap contributors．タップで著作権ページを開きます")
   }
 
   // MARK: - 状態バナー（信頼性の担保）

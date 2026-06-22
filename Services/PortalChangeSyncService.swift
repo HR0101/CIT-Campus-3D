@@ -91,9 +91,10 @@ final class PortalChangeSyncService: NSObject, WKNavigationDelegate {
     lastErrorMessage = nil
     status = .syncing
 
+    // フォーカスによるソフトキーボードの一瞬表示を防ぐ設定を使う
     let webView = WKWebView(
       frame: CGRect(x: 0, y: 0, width: 1024, height: 1366),
-      configuration: WKWebViewConfiguration()
+      configuration: PortalAuth.makeHeadlessWebViewConfiguration()
     )
     webView.customUserAgent = PortalAuth.desktopUserAgent
     webView.navigationDelegate = self

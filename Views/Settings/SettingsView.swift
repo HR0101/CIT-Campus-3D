@@ -79,7 +79,7 @@ struct SettingsView: View {
         } header: {
           Text("経路表示")
         } footer: {
-          Text("オンのとき，キャンパスから離れている間は徒歩ルートを表示しません．大学の近く（約\(Int(Campus.vicinityRadiusMeters))m以内）に入ると自動で表示されます．")
+          Text("オンのとき，キャンパスから離れている間は徒歩ルートと「教室まで約N分」を表示しません．大学のすぐ近く（約\(Int(Campus.routeVicinityRadiusMeters))m以内）に入ると自動で表示されます．")
         }
 
         // 授業前リマインダー
@@ -139,6 +139,35 @@ struct SettingsView: View {
           } footer: {
             Text("通知がオフになっています．リマインダーを受け取るには，設定アプリから通知を許可してください．")
           }
+        }
+
+        // アプリについて・法的事項
+        Section {
+          HStack {
+            Text("バージョン")
+            Spacer()
+            Text("\(AppMetadata.version)（\(AppMetadata.build)）")
+              .foregroundStyle(.secondary)
+          }
+          NavigationLink {
+            PrivacyPolicyView()
+          } label: {
+            Label("プライバシーポリシー", systemImage: "hand.raised")
+          }
+          NavigationLink {
+            TermsOfUseView()
+          } label: {
+            Label("利用規約・免責事項", systemImage: "doc.text")
+          }
+          NavigationLink {
+            AcknowledgementsView()
+          } label: {
+            Label("ライセンス・帰属表示", systemImage: "checkmark.seal")
+          }
+        } header: {
+          Text("アプリについて")
+        } footer: {
+          Text("本アプリは千葉工業大学・manabaの公式アプリではありません（非公認の個人開発アプリです）．表示内容は公式情報で必ずご確認ください．")
         }
       }
       .navigationTitle("設定")
