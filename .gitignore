@@ -1,28 +1,24 @@
-node_modules/
-
-# macOS
+# Local machine and IDE state
 .DS_Store
-.AppleDouble
-Assets.xcassets
-.LSOverride
-Icon?
-._*
-.Spotlight-V100
-.Trashes
-
-
-# Editors / IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Logs / temp
+.claude/
+.codex/
+.agents/
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+.build/
+*.xcresult
 *.log
-*.tmp
-*.temp
-
-# Local environment files
 .env
 .env.*
 !.env.example
+*.p12
+*.mobileprovision
+
+# Personal timetable exports and reference images (not app resources)
+/*.xlsx
+/*.pdf
+/*.jpg
+/*.jpeg
+/*.png
