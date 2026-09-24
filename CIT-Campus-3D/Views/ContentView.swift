@@ -36,6 +36,8 @@ struct ContentView: View {
   @State private var attendancePromptLecture: NextLectureResult?
   @State private var attendanceUrlToOpen: AttendanceDestination?
   @State private var showAttendanceLoginFailedAlert = false
+  /// 起動・バックグラウンドからの復帰ごとに1回，自動取得する．
+  @State private var needsManabaSyncOnOpen = true
 
   /// 次の授業の判定サービス
   private let resolver = NextLectureResolver()
@@ -109,13 +111,7 @@ struct ContentView: View {
       // 起動時にCloudKit同期などで生じた重複（課題・時間割変更）を掃除する
       try? AssignmentImporter.deduplicate(into: modelContext)
       try? ClassChangeImporter.deduplicate(into: modelContext)
-      // 起動時にmanaba課題をバックグラウンド同期する（資格情報があり，前回から時間が経っていれば）
-      manabaSync.syncIfStale(
-        credentialStore: credentialStore,
-        modelContext: modelContext,
-        settings: settings,
-        notifications: notifications
-      )
+      syncManabaOnOpenIfNeeded()
       // 起動時にポータルの休講・補講もバックグラウンド同期する（TOTP登録済みのときのみ）
       portalChangeSync.syncIfStale(
         credentialStore: credentialStore,
@@ -128,19 +124,14 @@ struct ContentView: View {
         // 復帰時に通知許可状態を取り直す（設定アプリでの変更を反映）．
         // 位置情報はマップタブのonAppearで開始するためここでは起動しない
         Task { await notifications.refreshAuthorizationStatus() }
-        // 復帰時にも前回から十分時間が経っていれば課題を同期する
-        manabaSync.syncIfStale(
-          credentialStore: credentialStore,
-          modelContext: modelContext,
-          settings: settings,
-          notifications: notifications
-        )
+        syncManabaOnOpenIfNeeded()
         // Wi-Fi接続確認と出席プロンプト（少し遅延させてネットワーク状態の更新を待つ）
         Task {
           try? await Task.sleep(for: .seconds(1))
           checkAttendancePrompt()
         }
       case .background:
+        needsManabaSyncOnOpen = true
         // バックグラウンドでは位置情報を止めてバッテリーを節約する
         locationService.stopUpdating()
       default:
@@ -152,6 +143,19 @@ struct ContentView: View {
         checkAttendancePrompt()
       }
     }
+  }
+
+  /// 前回の取得時刻に関係なく，アプリを開いたときに登録済み認証情報で取得する．
+  /// 起動時のtaskとactive通知の重複，許可ダイアログを閉じただけの再取得を防ぐ．
+  private func syncManabaOnOpenIfNeeded() {
+    guard scenePhase == .active, needsManabaSyncOnOpen, credentialStore.isRegistered else { return }
+    needsManabaSyncOnOpen = false
+    manabaSync.sync(
+      credentialStore: credentialStore,
+      modelContext: modelContext,
+      settings: settings,
+      notifications: notifications
+    )
   }
 
   // MARK: - 出席の自動プロンプト
