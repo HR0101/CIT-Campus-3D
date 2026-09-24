@@ -2,7 +2,7 @@
 //  AssignmentListView.swift
 //  CIT-Campus-3D
 //
-//  manabaから取り込んだ課題を締切順に一覧表示する画面．
+//  manabaから取り込んだ課題を未提出・完了・期限切れの順に一覧表示する画面．
 //  manaba自動ログイン取り込み・スワイプでの完了／削除・締切リマインダーの再予約を行う．
 //
 
@@ -46,16 +46,18 @@ struct AssignmentListView: View {
     activeAssignments.filter { $0.isOverdue() }.sorted { ($0.dueDate ?? .distantPast) < ($1.dueDate ?? .distantPast) }
   }
 
-  /// これから（未完了・締切が未来）
-  private var upcoming: [Assignment] {
-    activeAssignments
-      .filter { if let due = $0.dueDate { return due >= Date() } else { return false } }
+  /// 未提出（期限内・期限なし）．締切が近い順で，期限なしは末尾に置く．
+  private var pending: [Assignment] {
+    let now = Date()
+    return activeAssignments
+      .filter { !$0.isOverdue(from: now) }
       .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
   }
 
-  /// 期限なし（未完了・締切不明）
-  private var noDue: [Assignment] {
-    activeAssignments.filter { $0.dueDate == nil }
+  /// 完了済みは締切を過ぎても「完了」に表示する．
+  private var completed: [Assignment] {
+    assignments.filter { $0.isDone }
+      .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
   }
 
   var body: some View {
@@ -64,7 +66,7 @@ struct AssignmentListView: View {
         syncStatusBar
       }
       Group {
-        if activeAssignments.isEmpty {
+        if assignments.isEmpty {
           emptyState
         } else {
           assignmentList
@@ -130,14 +132,14 @@ struct AssignmentListView: View {
           Label("ブラウザで取り込む", systemImage: "globe")
         }
       } label: {
-        Image(systemName: "arrow.clockwise")
+        Text("同期")
       }
       .accessibilityLabel("manabaと同期")
     } else {
       Button {
         isShowingManabaImport = true
       } label: {
-        Image(systemName: "square.and.arrow.down")
+        Text("課題を取り込む")
       }
       .accessibilityLabel("manabaから課題を取り込む")
     }
@@ -196,19 +198,19 @@ struct AssignmentListView: View {
 
   private var assignmentList: some View {
     List {
+      if !pending.isEmpty {
+        Section("未提出") {
+          ForEach(pending) { assignmentRow($0) }
+        }
+      }
+      if !completed.isEmpty {
+        Section("完了") {
+          ForEach(completed) { assignmentRow($0) }
+        }
+      }
       if !overdue.isEmpty {
         Section("期限切れ") {
           ForEach(overdue) { assignmentRow($0) }
-        }
-      }
-      if !upcoming.isEmpty {
-        Section("これから") {
-          ForEach(upcoming) { assignmentRow($0) }
-        }
-      }
-      if !noDue.isEmpty {
-        Section("期限なし") {
-          ForEach(noDue) { assignmentRow($0) }
         }
       }
     }
@@ -250,9 +252,10 @@ struct AssignmentListView: View {
     }
     .swipeActions(edge: .leading) {
       Button {
-        markDone(assignment)
+        toggleDone(assignment)
       } label: {
-        Label("完了", systemImage: "checkmark")
+        Label(assignment.isDone ? "未完了に戻す" : "完了",
+              systemImage: assignment.isDone ? "arrow.uturn.backward" : "checkmark")
       }
       .tint(.green)
     }
@@ -263,7 +266,8 @@ struct AssignmentListView: View {
   private func dueLabel(for assignment: Assignment) -> some View {
     if let due = assignment.dueDate {
       let now = Date()
-      let color: Color = due < now ? .red : (due.timeIntervalSince(now) < 86400 ? .orange : .secondary)
+      let color: Color = assignment.isDone ? .secondary
+        : (due < now ? .red : (due.timeIntervalSince(now) < 86400 ? .orange : .secondary))
       Label("締切 \(Self.dueFormatter.string(from: due))", systemImage: "clock")
         .font(.caption)
         .foregroundStyle(color)
@@ -313,9 +317,9 @@ struct AssignmentListView: View {
     }
   }
 
-  /// 課題を完了（非表示）にする
-  private func markDone(_ assignment: Assignment) {
-    assignment.isDone = true
+  /// 完了状態を切り替え，該当するセクションへ移す．
+  private func toggleDone(_ assignment: Assignment) {
+    assignment.isDone.toggle()
     saveAndReschedule(failureTitle: "更新に失敗しました")
   }
 
