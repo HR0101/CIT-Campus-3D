@@ -2,7 +2,7 @@
 //  AddLectureView.swift
 //  CIT-Campus-3D
 //
-//  授業を手動で1件ずつ追加するフォーム．
+//  授業を開始〜終了時限の範囲で追加するフォーム．
 //  ファイルインポート失敗時の最終フォールバックとしても機能する．
 //
 
@@ -22,8 +22,9 @@ struct AddLectureView: View {
   /// 選択中の曜日
   @State private var weekday: Weekday = .monday
 
-  /// 選択中の時限番号
-  @State private var periodNumber = 1
+  /// 既定は2コマ．1コマや3コマ以上の授業も指定できる．
+  @State private var startPeriod = 1
+  @State private var endPeriod = 2
 
   /// 科目名の入力値
   @State private var subjectName = ""
@@ -59,6 +60,9 @@ struct AddLectureView: View {
   /// 入力が有効かどうか（科目名は必須）
   private var isInputValid: Bool {
     !trimmedSubjectName.isEmpty
+      && ClassPeriod.period(number: startPeriod) != nil
+      && ClassPeriod.period(number: endPeriod) != nil
+      && startPeriod <= endPeriod
   }
 
   var body: some View {
@@ -75,12 +79,21 @@ struct AddLectureView: View {
               Text("\(day.shortName)曜").tag(day)
             }
           }
-          Picker("時限", selection: $periodNumber) {
+          Picker("開始時限", selection: $startPeriod) {
             ForEach(ClassPeriod.allPeriods) { classPeriod in
               Text("\(classPeriod.displayName)（\(classPeriod.timeRangeText)）")
                 .tag(classPeriod.number)
             }
           }
+          Picker("終了時限", selection: $endPeriod) {
+            ForEach(ClassPeriod.allPeriods.filter { $0.number >= startPeriod }) { classPeriod in
+              Text("\(classPeriod.displayName)（\(classPeriod.timeRangeText)）")
+                .tag(classPeriod.number)
+            }
+          }
+          Text("\(startPeriod)限〜\(endPeriod)限（\(endPeriod - startPeriod + 1)コマ）をまとめて登録します")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
 
         Section("授業情報") {
@@ -121,6 +134,11 @@ struct AddLectureView: View {
       } message: {
         Text(saveErrorMessage)
       }
+      .onChange(of: startPeriod) { oldStart, newStart in
+        // 開始を動かしても選んだコマ数を保ち，最終時限を超えないようにする．
+        let duration = max(0, endPeriod - oldStart)
+        endPeriod = min(ClassPeriod.allPeriods.last?.number ?? newStart, newStart + duration)
+      }
       .onChange(of: campus) { _, newCampus in
         // キャンパスを切り替えたら講義棟の選択をそのキャンパスの先頭に戻す
         buildingName = CampusBuilding.allBuildings
@@ -131,25 +149,30 @@ struct AddLectureView: View {
 
   // MARK: - Private
 
-  /// 入力内容からLectureを生成して保存する
+  /// 範囲内の各コマを一度に保存し，既存の時間割・次の授業判定と共有する．
   private func saveLecture() {
-    let lecture = Lecture(
-      semester: semester,
-      weekday: weekday,
-      period: periodNumber,
-      subjectName: trimmedSubjectName,
-      teacherName: teacherName.trimmingCharacters(in: .whitespacesAndNewlines),
-      campus: campus,
-      buildingName: buildingName,
-      roomNumber: roomNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-    )
-    modelContext.insert(lecture)
+    guard isInputValid else { return }
+    let lectures = (startPeriod...endPeriod).map { period in
+      Lecture(
+        semester: semester,
+        weekday: weekday,
+        period: period,
+        subjectName: trimmedSubjectName,
+        teacherName: teacherName.trimmingCharacters(in: .whitespacesAndNewlines),
+        campus: campus,
+        buildingName: buildingName,
+        roomNumber: roomNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+      )
+    }
+    for lecture in lectures { modelContext.insert(lecture) }
     do {
       try modelContext.save()
       // 時間割が変わったのでホーム／ロック画面のウィジェットを更新する
       WidgetCenter.shared.reloadAllTimelines()
       dismiss()
     } catch {
+      // 再試行時に同じ範囲が二重登録されないよう，今回追加した分だけ戻す．
+      for lecture in lectures { modelContext.delete(lecture) }
       saveErrorMessage = error.localizedDescription
       isShowingSaveError = true
     }
