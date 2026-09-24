@@ -66,6 +66,7 @@ struct TimetableListView: View {
 
   /// ポータル取り込み画面の表示フラグ
   @State private var isShowingPortalImport = false
+  @State private var isShowingScreenshotImport = false
 
   /// ポータル画面を閉じた後にファイル選択を開くか（ポータル画面でファイル取込が選ばれた時）
   @State private var shouldOpenFileImporterAfterPortal = false
@@ -132,6 +133,8 @@ struct TimetableListView: View {
     NavigationStack {
       VStack(spacing: 0) {
         semesterPicker
+        importButtons
+        timetableControls
         if !activeAssignments.isEmpty {
           assignmentSummary
         }
@@ -150,20 +153,6 @@ struct TimetableListView: View {
       }
       .navigationTitle("時間割")
       .toolbar {
-        ToolbarItem(placement: .topBarLeading) {
-          CloudSyncIndicator()
-        }
-        ToolbarItem(placement: .topBarLeading) {
-          Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
-              layout = (layout == .list) ? .grid : .list
-            }
-          } label: {
-            // 切り替え先の形式を表すアイコンを出す
-            Image(systemName: layout == .list ? "tablecells" : "list.bullet")
-          }
-          .accessibilityLabel(layout == .list ? "表形式で表示" : "リスト形式で表示")
-        }
         if !lectures.isEmpty {
           ToolbarItem(placement: .topBarLeading) {
             Menu {
@@ -178,49 +167,16 @@ struct TimetableListView: View {
                 Label("すべて削除", systemImage: "trash")
               }
             } label: {
-              Image(systemName: "ellipsis.circle")
+              Text("管理")
             }
             .accessibilityLabel("一括削除")
           }
-        }
-        ToolbarItem(placement: .topBarLeading) {
-          NavigationLink {
-            AssignmentListView()
-          } label: {
-            Image(systemName: "list.clipboard")
-          }
-          .accessibilityLabel("課題")
-        }
-        ToolbarItem(placement: .topBarLeading) {
-          NavigationLink {
-            ClassChangeListView()
-          } label: {
-            Image(systemName: "calendar.badge.exclamationmark")
-          }
-          .accessibilityLabel("休講・補講")
-        }
-        ToolbarItem(placement: .primaryAction) {
-          Menu {
-            Button {
-              isShowingPortalImport = true
-            } label: {
-              Label("ポータルから取り込む", systemImage: "globe")
-            }
-            Button {
-              isShowingFileImporter = true
-            } label: {
-              Label("ファイルから取り込む（Excel / PDF）", systemImage: "doc")
-            }
-          } label: {
-            Image(systemName: "square.and.arrow.down")
-          }
-          .accessibilityLabel("時間割を取り込む")
         }
         ToolbarItem(placement: .primaryAction) {
           Button {
             isShowingAddSheet = true
           } label: {
-            Image(systemName: "plus")
+            Text("授業を追加")
           }
           .accessibilityLabel("授業を追加")
         }
@@ -231,6 +187,11 @@ struct TimetableListView: View {
         allowsMultipleSelection: false
       ) { result in
         handleFileImport(result)
+      }
+      .sheet(isPresented: $isShowingScreenshotImport) {
+        ScreenshotImportView { drafts, replaceExisting in
+          saveImportedDrafts(drafts, replaceExisting: replaceExisting, replaceOnlyImportedSemesters: true)
+        }
       }
       .sheet(item: $importSession) { session in
         ImportPreviewView(drafts: session.drafts) { drafts, replaceExisting in
@@ -359,13 +320,70 @@ struct TimetableListView: View {
     .padding(.bottom, 8)
   }
 
+  /// よく使う画面への移動と表示形式を，文字で選べるようにする．
+  private var timetableControls: some View {
+    VStack(spacing: 8) {
+      HStack(spacing: 12) {
+        NavigationLink("課題") { AssignmentListView() }
+        NavigationLink("休講・補講") { ClassChangeListView() }
+        Spacer(minLength: 0)
+      }
+      .buttonStyle(.bordered)
+      HStack {
+        CloudSyncIndicator()
+          .font(.caption)
+        Spacer(minLength: 8)
+        Picker("表示形式", selection: $layout) {
+          Text("表").tag(TimetableLayout.grid)
+          Text("一覧").tag(TimetableLayout.list)
+        }
+        .pickerStyle(.segmented)
+        .frame(width: 130)
+      }
+    }
+    .padding(.horizontal)
+    .padding(.bottom, 8)
+  }
+
+  /// 取り込み方法をメニューに隠さず，画面から直接選べるようにする．
+  private var importButtons: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 8) { importActions }
+      VStack(spacing: 8) { importActions }
+    }
+    .buttonStyle(.bordered)
+    .padding(.horizontal)
+    .padding(.bottom, 8)
+  }
+
+  @ViewBuilder
+  private var importActions: some View {
+      Button {
+        isShowingPortalImport = true
+      } label: {
+        Text("ポータル")
+          .frame(maxWidth: .infinity)
+      }
+      .accessibilityLabel("ポータルから時間割を取り込む")
+
+      Button {
+        isShowingFileImporter = true
+      } label: {
+        Text("PDF / Excel")
+          .frame(maxWidth: .infinity)
+      }
+      .accessibilityLabel("PDF・Excelから時間割を取り込む")
+      Button("スクショ") { isShowingScreenshotImport = true }
+        .accessibilityLabel("スクショから時間割を取り込む")
+  }
+
   // MARK: - 空状態（インポートへの導線）
 
   private var emptyStateView: some View {
     ContentUnavailableView {
       Label("\(selectedSemester.displayName)の時間割が未登録です", systemImage: "calendar.badge.plus")
     } description: {
-      Text("右上の取り込みボタンから，大学ポータルに直接ログインして取り込むか，ポータルでダウンロードした学生時間割表（.xlsx / .pdf）を読み込めます．＋ボタンで1件ずつの手動追加もできます．")
+      Text("上の「ポータル」から直接ログインして取り込むか，「PDF / Excel」からダウンロード済みの学生時間割表を読み込めます．「スクショ」から画像を読み取り，修正して登録することもできます．「授業を追加」で1件ずつ手動登録もできます．")
     }
   }
 
@@ -428,9 +446,10 @@ struct TimetableListView: View {
   }
 
   /// プレビューで確認済みのドラフトをSwiftDataへ保存する
-  private func saveImportedDrafts(_ drafts: [LectureDraft], replaceExisting: Bool) {
+  private func saveImportedDrafts(_ drafts: [LectureDraft], replaceExisting: Bool, replaceOnlyImportedSemesters: Bool = false) {
     if replaceExisting {
-      for lecture in lectures {
+      let semesters = Set(drafts.map(\.semester))
+      for lecture in lectures where !replaceOnlyImportedSemesters || semesters.contains(lecture.semester) {
         modelContext.delete(lecture)
       }
     }

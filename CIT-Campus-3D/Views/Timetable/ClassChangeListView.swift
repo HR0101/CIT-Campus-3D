@@ -68,7 +68,7 @@ struct ClassChangeListView: View {
           Button {
             syncNow()
           } label: {
-            Image(systemName: "arrow.clockwise")
+            Text("ポータルから取得")
           }
           .accessibilityLabel("ポータルから取得")
         }
