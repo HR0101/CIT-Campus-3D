@@ -18,7 +18,7 @@ struct CloudSyncIndicator: View {
     Group {
       if !SharedModelContainer.isCloudKitEnabled {
         // iCloud未設定・未ログイン等でローカル保存のみ
-        Image(systemName: "icloud.slash")
+        Text("この端末に保存")
           .foregroundStyle(.secondary)
           .help("iCloud同期は無効です（この端末にのみ保存）")
           .accessibilityLabel("iCloud同期は無効")
@@ -34,12 +34,12 @@ struct CloudSyncIndicator: View {
           }
           .accessibilityLabel("iCloud同期中")
         case .error:
-          Image(systemName: "exclamationmark.icloud")
+          Text("iCloud同期エラー")
             .foregroundStyle(.orange)
             .help("iCloud同期でエラーが発生しました")
             .accessibilityLabel("iCloud同期エラー")
         case .idle:
-          Image(systemName: "checkmark.icloud")
+          Text("iCloud同期済み")
             .foregroundStyle(.secondary)
             .help(lastSyncHelpText)
             .accessibilityLabel("iCloud同期済み")

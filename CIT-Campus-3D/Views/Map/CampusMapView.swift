@@ -338,11 +338,12 @@ struct CampusMapView: View {
     Button {
       isPlacePickerPresented = true
     } label: {
-      Image(systemName: "list.bullet")
-        .font(.system(size: 18, weight: .semibold))
+      Text("場所一覧")
+        .font(.subheadline.weight(.semibold))
         .foregroundStyle(.cyan)
-        .frame(width: 44, height: 44)
-        .background(.ultraThinMaterial, in: Circle())
+        .padding(.horizontal, 14)
+        .frame(minHeight: 44)
+        .background(.ultraThinMaterial, in: Capsule())
     }
     .accessibilityLabel("場所一覧")
   }
@@ -352,11 +353,12 @@ struct CampusMapView: View {
     Button {
       viewModel.focusOnUserLocation(locationService.currentLocation)
     } label: {
-      Image(systemName: "location.fill")
-        .font(.system(size: 18, weight: .semibold))
+      Text("現在地")
+        .font(.subheadline.weight(.semibold))
         .foregroundStyle(.cyan)
-        .frame(width: 44, height: 44)
-        .background(.ultraThinMaterial, in: Circle())
+        .padding(.horizontal, 14)
+        .frame(minHeight: 44)
+        .background(.ultraThinMaterial, in: Capsule())
     }
     .accessibilityLabel("現在地へ移動")
   }

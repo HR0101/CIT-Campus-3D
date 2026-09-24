@@ -30,7 +30,7 @@ final class Assignment {
   var courseURL: String = ""
   /// 課題ID（URL末尾の数値．重複排除・通知IDに使う）
   var manabaId: String = ""
-  /// 完了（提出済み・非表示）としてユーザーが消したか
+  /// ユーザーが完了としてマークしたか（一覧の「完了」に表示）
   var isDone: Bool = false
   /// 取り込んだ日時
   var importedAt: Date = Date.distantPast
