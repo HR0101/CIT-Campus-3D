@@ -327,10 +327,13 @@ struct CampusMapView: View {
 
   /// 場所一覧ボタンと現在地ボタン
   private var controlButtons: some View {
-    VStack(spacing: 12) {
+    VStack(spacing: 0) {
       placeListButton
+      Divider().overlay(.white.opacity(0.08)).padding(.horizontal, 12)
       focusUserButton
     }
+    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+    .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.white.opacity(0.12)))
   }
 
   /// 場所一覧を開くボタン
@@ -338,12 +341,11 @@ struct CampusMapView: View {
     Button {
       isPlacePickerPresented = true
     } label: {
-      Text("場所一覧")
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.cyan)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 44)
-        .background(.ultraThinMaterial, in: Capsule())
+      Label("場所一覧", systemImage: "map")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.white)
+        .frame(width: 100, height: 46)
+        .contentShape(Rectangle())
     }
     .accessibilityLabel("場所一覧")
   }
@@ -353,12 +355,11 @@ struct CampusMapView: View {
     Button {
       viewModel.focusOnUserLocation(locationService.currentLocation)
     } label: {
-      Text("現在地")
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.cyan)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 44)
-        .background(.ultraThinMaterial, in: Capsule())
+      Label("現在地", systemImage: "location")
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.white)
+        .frame(width: 100, height: 46)
+        .contentShape(Rectangle())
     }
     .accessibilityLabel("現在地へ移動")
   }
