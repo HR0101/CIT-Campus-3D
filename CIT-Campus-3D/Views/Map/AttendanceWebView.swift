@@ -94,6 +94,9 @@ struct AttendanceWebView: UIViewRepresentable {
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
       parent.isLoading = false
+      // 出席サイト以外へ遷移した場合は認証情報を渡さない．
+      guard webView.url?.scheme == "https",
+        webView.url?.host == "attendance.is.chibatech.ac.jp" else { return }
       // 認証情報を自動入力（JSONエンコードしてJSへ渡す）
       let payload = AttendanceAutofillPayload(
         uid: parent.userID,
@@ -125,33 +128,48 @@ struct AttendanceWebView: UIViewRepresentable {
 
     /// 自動入力JS（ログイン・出席のそれぞれにつき1回だけ送信する）．
     /// 引数はJSONそのものをJSリテラルとしてパースさせるため，文字列内挿によるJS構文破壊が起きない．
-    private static func autofillScript(argumentJSON: String) -> String {
+    static func autofillScript(argumentJSON: String) -> String {
       """
       (function(p) {
-        // ログイン画面の自動入力と送信（失敗して同じ画面に戻された場合も毎回上書きして送信する）
+        function fill(field, value) {
+          field.value = value;
+          field.dispatchEvent(new Event('input', {bubbles: true}));
+          field.dispatchEvent(new Event('change', {bubbles: true}));
+          // 出席サイトはkeyupでログインボタンのdisabledを解除する．
+          field.dispatchEvent(new KeyboardEvent('keyup', {bubbles: true}));
+        }
         if (p.allowLogin) {
-          var userField = document.getElementById('username');
-          var passField = document.getElementById('password');
-          if (userField && passField) {
-            userField.value = p.uid;
-            passField.value = p.pwd;
-            var forms = document.getElementsByTagName('form');
-            if (forms.length > 0) {
-              forms[0].submit();
-              return "login_submitted";
-            }
+          var userField = document.querySelector('input[name="username"]')
+            || document.getElementById('userid') || document.getElementById('username');
+          var passField = document.querySelector('input[name="password"]')
+            || document.getElementById('password');
+          if (userField && passField && p.uid && p.pwd) {
+            var loginForm = userField.form;
+            if (!loginForm || passField.form !== loginForm
+                || new URL(loginForm.action, location.href).origin !== location.origin) return "none";
+            if (loginForm.dataset.citSubmitted) return "none";
+            fill(userField, p.uid);
+            fill(passField, p.pwd);
+            var loginButton = loginForm.querySelector('button[type="submit"], input[type="submit"]');
+            if (loginButton && loginButton.disabled) return "login_disabled";
+            if (!loginForm.checkValidity()) return "none";
+            loginForm.dataset.citSubmitted = 'true';
+            if (loginButton) loginButton.click();
+            else loginForm.requestSubmit();
+            return "login_submitted";
           }
         }
 
-        // 出席確認画面の自動クリック
+        // ボタンのクリック処理（位置情報取得など）とフォーム検証を通す．
         if (p.allowAttend) {
           var attendButton = document.getElementById('attend');
           var attendForm = document.getElementById('attendForm');
-
-          // attendButton が存在する場合のみ未出席と判定してフォームを送信する
-          // （出席済みの場合は attendButton がなく disabled なボタンになっているため何もしない）
-          if (attendButton && attendForm) {
-            attendForm.submit();
+          if (attendButton && attendForm && !attendButton.disabled
+              && attendButton.getAttribute('aria-disabled') !== 'true'
+              && !attendButton.dataset.citClicked
+              && new URL(attendForm.action, location.href).origin === location.origin) {
+            attendButton.dataset.citClicked = 'true';
+            attendButton.click();
             return "attend_submitted";
           }
         }
@@ -233,7 +251,12 @@ struct AttendanceSheetView: View {
     ContentUnavailableView {
       Label("ID・パスワードが未登録です", systemImage: "key.slash")
     } description: {
-      Text("出席を自動で行うには，設定の「出席システム連携」でユーザーID・パスワードを登録してください．")
+      Text("出席を自動で行うには、ユーザーID・パスワードを登録してください。")
+    } actions: {
+      NavigationLink("出席のID・パスワードを登録") {
+        AttendanceCredentialSetupView()
+      }
+      .buttonStyle(.borderedProminent)
     }
   }
 }

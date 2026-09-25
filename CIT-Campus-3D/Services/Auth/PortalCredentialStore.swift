@@ -107,6 +107,16 @@ final class PortalCredentialStore {
     self.userID = userID
   }
 
+  /// manaba用の登録では既存のOTPシークレットを変更しない．
+  func saveLoginCredentials(userID: String, password: String) throws {
+    let trimmedID = userID.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedID.isEmpty else { throw CredentialStoreError.emptyField("ユーザーID") }
+    guard !password.isEmpty else { throw CredentialStoreError.emptyField("パスワード") }
+    try keychain.writeString(trimmedID, account: Account.userID)
+    try keychain.writeString(password, account: Account.password)
+    self.userID = trimmedID
+  }
+
   /// 保存済みパスワードを取得する（未登録ならnil）
   func loadPassword() -> String? {
     (try? keychain.readString(account: Account.password)) ?? nil
