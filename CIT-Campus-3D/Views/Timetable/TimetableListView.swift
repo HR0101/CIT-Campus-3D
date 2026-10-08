@@ -680,20 +680,38 @@ struct TimetableGrid: View {
   }
 
   var body: some View {
-    ScrollView {
-      Grid(horizontalSpacing: 4, verticalSpacing: 4) {
-        headerRow
-        ForEach(periods) { period in
-          GridRow {
-            periodLabel(period)
-            ForEach(days) { day in
-              cell(day: day, period: period.number)
+    TimelineView(.periodic(from: .now, by: 30)) { context in
+      ScrollView {
+        VStack(alignment: .leading, spacing: 10) {
+          Text("現在 \(context.date.formatted(.dateTime.weekday(.wide).hour().minute()))")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("現在日時 \(context.date.formatted(.dateTime.weekday(.wide).hour().minute()))")
+          Grid(horizontalSpacing: 4, verticalSpacing: 4) {
+            headerRow(at: context.date)
+            ForEach(periods) { period in
+              GridRow {
+                periodLabel(period)
+                ForEach(days) { day in
+                  cell(day: day, period: period.number)
+                    .overlay {
+                      if day.rawValue == Calendar.current.component(.weekday, from: context.date) {
+                        RoundedRectangle(cornerRadius: GridConstants.cornerRadius)
+                          .strokeBorder(Color.accentColor.opacity(0.3), lineWidth: 1)
+                          .allowsHitTesting(false)
+                      }
+                    }
+                    .overlay {
+                      currentTimeBar(day: day, period: period, date: context.date)
+                    }
+                }
+              }
             }
           }
         }
+        .padding(.horizontal)
+        .padding(.bottom, 12)
       }
-      .padding(.horizontal)
-      .padding(.bottom, 12)
     }
     .confirmationDialog(
       selectedLecture?.subjectName ?? "",
@@ -729,7 +747,7 @@ struct TimetableGrid: View {
   // MARK: - 部品
 
   /// ヘッダ行（左上の空セル＋曜日名）
-  private var headerRow: some View {
+  private func headerRow(at date: Date) -> some View {
     GridRow {
       Color.clear
         .frame(width: GridConstants.periodColumnWidth, height: 1)
@@ -737,7 +755,39 @@ struct TimetableGrid: View {
         Text(day.shortName)
           .font(.subheadline.bold())
           .frame(maxWidth: .infinity)
+          .padding(.vertical, 6)
+          .foregroundStyle(day.rawValue == Calendar.current.component(.weekday, from: date)
+            ? Color.accentColor : Color.primary)
+          .background {
+            if day.rawValue == Calendar.current.component(.weekday, from: date) {
+              Capsule().fill(Color.accentColor.opacity(0.14))
+            }
+          }
+          .accessibilityLabel(day.rawValue == Calendar.current.component(.weekday, from: date)
+            ? "今日、\(day.shortName)曜日" : "\(day.shortName)曜日")
       }
+    }
+  }
+
+  /// 今日の列の中で、時限内の経過時間に合わせてバーを移動する。
+  @ViewBuilder
+  private func currentTimeBar(day: Weekday, period: ClassPeriod, date: Date) -> some View {
+    if day.rawValue == Calendar.current.component(.weekday, from: date),
+       let start = period.startDate(on: date),
+       let end = period.endDate(on: date),
+       date >= start, date < end {
+      GeometryReader { geometry in
+        let progress = date.timeIntervalSince(start) / end.timeIntervalSince(start)
+        ZStack(alignment: .leading) {
+          Capsule().fill(Color.red).frame(height: 2)
+          Circle().fill(Color.red).frame(width: 7, height: 7)
+        }
+        .shadow(color: Color(uiColor: .systemBackground), radius: 1)
+        .position(x: geometry.size.width / 2,
+                  y: geometry.size.height * progress)
+      }
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
     }
   }
 
