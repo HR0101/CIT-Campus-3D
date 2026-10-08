@@ -67,6 +67,7 @@ struct TimetableListView: View {
   /// ポータル取り込み画面の表示フラグ
   @State private var isShowingPortalImport = false
   @State private var isShowingScreenshotImport = false
+  @State private var isShowingRoomAttendance = false
 
   /// ポータル画面を閉じた後にファイル選択を開くか（ポータル画面でファイル取込が選ばれた時）
   @State private var shouldOpenFileImporterAfterPortal = false
@@ -134,6 +135,16 @@ struct TimetableListView: View {
       VStack(spacing: 0) {
         semesterPicker
         timetableShortcuts
+        Button {
+          isShowingRoomAttendance = true
+        } label: {
+          Label("教室番号から出席", systemImage: "checkmark.circle")
+            .font(.subheadline.weight(.medium))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .padding(.horizontal)
         timetableControls
         Group {
           if filteredLectures.isEmpty {
@@ -186,6 +197,9 @@ struct TimetableListView: View {
         allowsMultipleSelection: false
       ) { result in
         handleFileImport(result)
+      }
+      .sheet(isPresented: $isShowingRoomAttendance) {
+        RoomAttendanceView()
       }
       .sheet(isPresented: $isShowingScreenshotImport) {
         ScreenshotImportView { drafts, replaceExisting in
