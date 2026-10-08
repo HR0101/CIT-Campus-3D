@@ -76,6 +76,9 @@ struct AssignmentListView: View {
     .navigationTitle("課題")
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
+      ToolbarItem(placement: .topBarLeading) {
+        NavigationLink("ID・パスワード") { ManabaCredentialSetupView() }
+      }
       ToolbarItem(placement: .primaryAction) {
         syncToolbarControl
       }
@@ -287,7 +290,7 @@ struct AssignmentListView: View {
       if credentialStore.isRegistered {
         Text("「今すぐ同期」を押すと，manabaから未提出課題を取得します．")
       } else {
-        Text("manabaから課題を取得するには，設定の「CITポータル連携」でMARINE ID・パスワードを登録してください．未登録の場合は手動でログインして取り込めます．")
+        Text("manabaから課題を取得するには，上の「ID・パスワード」からMARINE ID・パスワードを登録してください．未登録の場合は手動でログインして取り込めます．")
       }
     } actions: {
       if credentialStore.isRegistered {

@@ -327,10 +327,13 @@ struct CampusMapView: View {
 
   /// 場所一覧ボタンと現在地ボタン
   private var controlButtons: some View {
-    VStack(spacing: 12) {
+    VStack(spacing: 0) {
       placeListButton
+      Divider().overlay(.white.opacity(0.08)).frame(width: 32)
       focusUserButton
     }
+    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+    .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.white.opacity(0.12)))
   }
 
   /// 場所一覧を開くボタン
@@ -338,12 +341,18 @@ struct CampusMapView: View {
     Button {
       isPlacePickerPresented = true
     } label: {
-      Text("場所一覧")
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.cyan)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 44)
-        .background(.ultraThinMaterial, in: Capsule())
+      VStack(spacing: 4) {
+        Image(systemName: "map")
+          .font(.system(size: 18, weight: .medium))
+          .accessibilityHidden(true)
+        Text("場所一覧")
+          .font(.caption2.weight(.medium))
+      }
+      .foregroundStyle(.white)
+      .padding(.vertical, 10)
+      .frame(minWidth: 64, minHeight: 56)
+      .fixedSize()
+      .contentShape(Rectangle())
     }
     .accessibilityLabel("場所一覧")
   }
@@ -353,12 +362,18 @@ struct CampusMapView: View {
     Button {
       viewModel.focusOnUserLocation(locationService.currentLocation)
     } label: {
-      Text("現在地")
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.cyan)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 44)
-        .background(.ultraThinMaterial, in: Capsule())
+      VStack(spacing: 4) {
+        Image(systemName: "location")
+          .font(.system(size: 18, weight: .medium))
+          .accessibilityHidden(true)
+        Text("現在地")
+          .font(.caption2.weight(.medium))
+      }
+      .foregroundStyle(.white)
+      .padding(.vertical, 10)
+      .frame(minWidth: 64, minHeight: 56)
+      .fixedSize()
+      .contentShape(Rectangle())
     }
     .accessibilityLabel("現在地へ移動")
   }
