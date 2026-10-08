@@ -90,11 +90,31 @@ final class Lecture {
   /// 出席システム向けの教室ID
   /// 特例として、7号館の3桁の教室番号（例: 731）の場合は、間に0を挟んで4桁（7301）に変換する
   var attendanceRoomId: String {
-    if roomNumber.count == 3 && roomNumber.hasPrefix("7") {
-      var id = roomNumber
+    AttendanceRoom.roomID(for: roomNumber) ?? ""
+  }
+}
+
+/// 時間割と教室番号入力で共用する出席システムの教室番号変換．
+enum AttendanceRoom {
+  static func roomID(for input: String) -> String? {
+    let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    let room = String(trimmed.unicodeScalars.map { scalar -> Character in
+      if (0xFF10...0xFF19).contains(scalar.value) {
+        return Character(UnicodeScalar(scalar.value - 0xFF10 + 0x30)!)
+      }
+      return Character(scalar)
+    })
+    guard (3...5).contains(room.count), room.utf8.allSatisfy({ (48...57).contains($0) }) else { return nil }
+    if room.count == 3 && room.hasPrefix("7") {
+      var id = room
       id.insert("0", at: id.index(id.startIndex, offsetBy: 2))
       return id
     }
-    return roomNumber
+    return room
+  }
+
+  static func url(for input: String) -> URL? {
+    guard let id = roomID(for: input) else { return nil }
+    return URL(string: "https://attendance.is.chibatech.ac.jp/attendance/class_room/\(id)")
   }
 }
