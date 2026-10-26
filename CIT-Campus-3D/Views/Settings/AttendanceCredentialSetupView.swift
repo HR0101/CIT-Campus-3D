@@ -34,20 +34,19 @@ struct AttendanceCredentialSetupView: View {
       Section {
         Toggle("ポータルと同じID・パスワードを使う", isOn: $attendanceStore.useSamePortalCredentials)
       } footer: {
-        Text("CITポータルと出席システムのID・パスワードが同じ場合はオンのままにしてください．異なる場合はオフにして，出席システム専用の認証情報を登録します．")
+        Text("CITポータル・manabaと同じID・パスワードならオンにします。異なる場合は下の入力欄で専用の情報を保存してください。")
       }
 
       if attendanceStore.useSamePortalCredentials {
         portalStatusSection
-      } else {
-        registeredSection
-        inputSection
-        if attendanceStore.isRegistered {
-          deleteSection
-        }
+      }
+      registeredSection
+      inputSection
+      if attendanceStore.isRegistered {
+        deleteSection
       }
     }
-    .navigationTitle("出席システム連携")
+    .navigationTitle("出席のID・パスワード")
     .navigationBarTitleDisplayMode(.inline)
     .onAppear {
       // 専用登録済みならユーザーIDを初期表示する（パスワードは安全のため空のまま）
@@ -63,16 +62,7 @@ struct AttendanceCredentialSetupView: View {
     } message: {
       Text(errorMessage ?? "")
     }
-    .confirmationDialog(
-      "専用の認証情報を削除しますか？",
-      isPresented: $showDeleteConfirm,
-      titleVisibility: .visible
-    ) {
-      Button("削除する", role: .destructive) { performDelete() }
-      Button("キャンセル", role: .cancel) {}
-    } message: {
-      Text("保存済みの出席システム専用のユーザーID・パスワードを端末から削除します．")
-    }
+
   }
 
   // MARK: - 「ポータルと同じ」場合の状態表示
@@ -130,7 +120,7 @@ struct AttendanceCredentialSetupView: View {
     } header: {
       Text("出席システム専用の認証情報")
     } footer: {
-      Text("出席システム（attendance.is.chibatech.ac.jp）へのログインにのみ使用します．認証情報はこの端末内にのみ保存します．")
+      Text("ここで保存すると、上の共通設定をオフにして出席専用のID・パスワードを使用します。認証情報はこの端末内にのみ保存します。")
     }
   }
 
@@ -141,6 +131,16 @@ struct AttendanceCredentialSetupView: View {
       Button("専用の認証情報を削除", role: .destructive) {
         showDeleteConfirm = true
       }
+      .confirmationDialog(
+        "専用の認証情報を削除しますか？",
+        isPresented: $showDeleteConfirm,
+        titleVisibility: .visible
+      ) {
+        Button("削除する", role: .destructive) { performDelete() }
+        Button("キャンセル", role: .cancel) {}
+      } message: {
+        Text("保存済みの出席システム専用のユーザーID・パスワードを端末から削除します．")
+      }
     }
   }
 
@@ -150,6 +150,7 @@ struct AttendanceCredentialSetupView: View {
   private func save() {
     do {
       try attendanceStore.save(userID: userID, password: password)
+      attendanceStore.useSamePortalCredentials = false
       // 保存後はメモリ上の機密入力を消し，完了表示を一時的に出す
       password = ""
       withAnimation { didSave = true }

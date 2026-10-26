@@ -34,6 +34,45 @@ final class CIT_Campus_3DUITests: XCTestCase {
     }
 
     @MainActor
+    func testTimetableTabWithSavedLectures() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let timetableTab = app.tabBars.buttons["時間割"]
+        XCTAssertTrue(timetableTab.waitForExistence(timeout: 15))
+        timetableTab.tap()
+        XCTAssertTrue(app.navigationBars["時間割"].waitForExistence(timeout: 10))
+
+        app.buttons["授業を追加"].tap()
+        let subjectField = app.textFields["科目名（必須）"]
+        XCTAssertTrue(subjectField.waitForExistence(timeout: 5))
+        subjectField.tap()
+        let subjectName = "時間割確認 \(UUID().uuidString.prefix(8))"
+        subjectField.typeText(subjectName)
+        app.navigationBars.buttons["保存"].tap()
+        XCTAssertTrue(app.navigationBars["時間割"].waitForExistence(timeout: 10))
+
+        let layoutPicker = app.segmentedControls.containing(.button, identifier: "一覧").firstMatch
+        XCTAssertTrue(layoutPicker.waitForExistence(timeout: 5))
+        for layout in ["表", "一覧", "表"] {
+            layoutPicker.buttons[layout].tap()
+            XCTAssertTrue(app.staticTexts[subjectName].firstMatch.waitForExistence(timeout: 5))
+        }
+
+        for _ in 0..<3 {
+            app.tabBars.buttons["マップ"].tap()
+            timetableTab.tap()
+            XCTAssertTrue(app.staticTexts[subjectName].firstMatch.waitForExistence(timeout: 5))
+        }
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(timetableTab.waitForExistence(timeout: 15))
+        timetableTab.tap()
+        XCTAssertTrue(app.staticTexts[subjectName].firstMatch.waitForExistence(timeout: 10))
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {

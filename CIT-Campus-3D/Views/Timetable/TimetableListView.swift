@@ -29,6 +29,11 @@ struct TimetableListView: View {
     let drafts: [LectureDraft]
   }
 
+  private enum Destination: Hashable {
+    case assignments
+    case classChanges
+  }
+
   /// 一括削除の対象範囲
   private enum DeleteScope {
     /// 表示中の学期のみ
@@ -47,8 +52,8 @@ struct TimetableListView: View {
   ])
   private var lectures: [Lecture]
 
-  /// 全課題（締切の早い順）
-  @Query(sort: \Assignment.dueDate)
+  /// バッジに必要な未完了課題だけ取得する（完了済みの履歴は読み込まない）．
+  @Query(filter: #Predicate<Assignment> { !$0.isDone }, sort: \Assignment.dueDate)
   private var assignments: [Assignment]
 
   /// nilは学年暦に従う自動表示．手動で別学期も確認できる．
@@ -67,6 +72,7 @@ struct TimetableListView: View {
   /// ポータル取り込み画面の表示フラグ
   @State private var isShowingPortalImport = false
   @State private var isShowingScreenshotImport = false
+  @State private var isShowingRoomAttendance = false
 
   /// ポータル画面を閉じた後にファイル選択を開くか（ポータル画面でファイル取込が選ばれた時）
   @State private var shouldOpenFileImporterAfterPortal = false
@@ -94,7 +100,8 @@ struct TimetableListView: View {
 
   /// 選択中の学期の授業
   private var filteredLectures: [Lecture] {
-    lectures.filter { $0.semester == selectedSemester }
+    let semester = selectedSemester
+    return lectures.filter { $0.semester == semester }
   }
 
   /// 未完了の課題
@@ -133,11 +140,18 @@ struct TimetableListView: View {
     NavigationStack {
       VStack(spacing: 0) {
         semesterPicker
-        importButtons
-        timetableControls
-        if !activeAssignments.isEmpty {
-          assignmentSummary
+        timetableShortcuts
+        Button {
+          isShowingRoomAttendance = true
+        } label: {
+          Label("教室番号から出席", systemImage: "checkmark.circle")
+            .font(.subheadline.weight(.medium))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
+        .padding(.horizontal)
+        timetableControls
         Group {
           if filteredLectures.isEmpty {
             emptyStateView
@@ -150,8 +164,15 @@ struct TimetableListView: View {
             }
           }
         }
+        importButtons
       }
       .navigationTitle("時間割")
+      .navigationDestination(for: Destination.self) { destination in
+        switch destination {
+        case .assignments: AssignmentListView()
+        case .classChanges: ClassChangeListView()
+        }
+      }
       .toolbar {
         if !lectures.isEmpty {
           ToolbarItem(placement: .topBarLeading) {
@@ -176,7 +197,8 @@ struct TimetableListView: View {
           Button {
             isShowingAddSheet = true
           } label: {
-            Text("授業を追加")
+            Label("授業を追加", systemImage: "plus")
+              .labelStyle(.titleAndIcon)
           }
           .accessibilityLabel("授業を追加")
         }
@@ -187,6 +209,9 @@ struct TimetableListView: View {
         allowsMultipleSelection: false
       ) { result in
         handleFileImport(result)
+      }
+      .sheet(isPresented: $isShowingRoomAttendance) {
+        RoomAttendanceView()
       }
       .sheet(isPresented: $isShowingScreenshotImport) {
         ScreenshotImportView { drafts, replaceExisting in
@@ -254,58 +279,6 @@ struct TimetableListView: View {
     }
   }
 
-  // MARK: - 課題サマリ（時間割画面に統合）
-
-  /// 締切表示用フォーマッタ
-  private static let assignmentDueFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "ja_JP")
-    formatter.dateFormat = "M/d HH:mm"
-    return formatter
-  }()
-
-  /// 課題の件数と最短締切を示し，課題一覧へ遷移するカード
-  private var assignmentSummary: some View {
-    NavigationLink {
-      AssignmentListView()
-    } label: {
-      HStack(spacing: 12) {
-        Image(systemName: "list.clipboard")
-          .font(.title3)
-          .foregroundStyle(.tint)
-        VStack(alignment: .leading, spacing: 2) {
-          Text("未提出の課題 \(activeAssignments.count)件")
-            .font(.subheadline.bold())
-            .foregroundStyle(.primary)
-          if let next = upcomingAssignments.first, let due = next.dueDate {
-            Text("最短締切 \(Self.assignmentDueFormatter.string(from: due))・\(next.title)")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .lineLimit(1)
-          } else {
-            Text("締切が近い課題はありません")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-          }
-        }
-        Spacer(minLength: 0)
-        Image(systemName: "chevron.right")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      }
-      .padding(.horizontal, 12)
-      .padding(.vertical, 10)
-      .background(
-        RoundedRectangle(cornerRadius: 12)
-          .fill(Color.accentColor.opacity(0.12))
-      )
-      .contentShape(Rectangle())
-    }
-    .buttonStyle(.plain)
-    .padding(.horizontal)
-    .padding(.bottom, 8)
-  }
-
   // MARK: - 学期切り替え
 
   private var semesterPicker: some View {
@@ -320,61 +293,74 @@ struct TimetableListView: View {
     .padding(.bottom, 8)
   }
 
-  /// よく使う画面への移動と表示形式を，文字で選べるようにする．
+  private var timetableShortcuts: some View {
+    HStack(spacing: 10) {
+      NavigationLink(value: Destination.assignments) {
+        shortcutLabel("課題", detail: upcomingAssignments.isEmpty ? "課題を確認" : "期限内 \(upcomingAssignments.count)件",
+                      symbol: "checklist", tint: .blue)
+      }
+      NavigationLink(value: Destination.classChanges) {
+        shortcutLabel("休講・補講", detail: "授業の変更を確認", symbol: "calendar.badge.clock", tint: .orange)
+      }
+    }
+    .buttonStyle(.plain)
+    .padding(.horizontal)
+    .padding(.bottom, 12)
+  }
+
+  private func shortcutLabel(_ title: String, detail: String, symbol: String, tint: Color) -> some View {
+    HStack(spacing: 10) {
+      Image(systemName: symbol)
+        .font(.system(size: 17, weight: .medium))
+        .foregroundStyle(tint)
+        .frame(width: 34, height: 34)
+        .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityHidden(true)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+        Text(detail).font(.caption2).foregroundStyle(.secondary)
+      }
+      Spacer(minLength: 0)
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+    .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.06)))
+    .contentShape(RoundedRectangle(cornerRadius: 16))
+  }
+
   private var timetableControls: some View {
-    VStack(spacing: 8) {
-      HStack(spacing: 12) {
-        NavigationLink("課題") { AssignmentListView() }
-        NavigationLink("休講・補講") { ClassChangeListView() }
-        Spacer(minLength: 0)
+    HStack {
+      CloudSyncIndicator()
+        .font(.caption2)
+      Spacer(minLength: 8)
+      Picker("表示形式", selection: $layout) {
+        Text("表").tag(TimetableLayout.grid)
+        Text("一覧").tag(TimetableLayout.list)
       }
-      .buttonStyle(.bordered)
-      HStack {
-        CloudSyncIndicator()
-          .font(.caption)
-        Spacer(minLength: 8)
-        Picker("表示形式", selection: $layout) {
-          Text("表").tag(TimetableLayout.grid)
-          Text("一覧").tag(TimetableLayout.list)
-        }
-        .pickerStyle(.segmented)
-        .frame(width: 130)
-      }
+      .pickerStyle(.segmented)
+      .frame(width: 120)
     }
     .padding(.horizontal)
-    .padding(.bottom, 8)
+    .padding(.bottom, 10)
   }
 
-  /// 取り込み方法をメニューに隠さず，画面から直接選べるようにする．
+  /// 取り込み方法は1つのメニューから選ぶ．
   private var importButtons: some View {
-    ViewThatFits(in: .horizontal) {
-      HStack(spacing: 8) { importActions }
-      VStack(spacing: 8) { importActions }
+    Menu {
+      Button("ポータル", systemImage: "globe") { isShowingPortalImport = true }
+      Button("PDF / Excel", systemImage: "doc") { isShowingFileImporter = true }
+      Button("スクショ", systemImage: "photo") { isShowingScreenshotImport = true }
+    } label: {
+      Label("取り込む", systemImage: "square.and.arrow.down")
+        .font(.subheadline)
+        .frame(minHeight: 44)
     }
-    .buttonStyle(.bordered)
+    .buttonStyle(.glass)
+    .accessibilityLabel("時間割を取り込む")
     .padding(.horizontal)
     .padding(.bottom, 8)
-  }
-
-  @ViewBuilder
-  private var importActions: some View {
-      Button {
-        isShowingPortalImport = true
-      } label: {
-        Text("ポータル")
-          .frame(maxWidth: .infinity)
-      }
-      .accessibilityLabel("ポータルから時間割を取り込む")
-
-      Button {
-        isShowingFileImporter = true
-      } label: {
-        Text("PDF / Excel")
-          .frame(maxWidth: .infinity)
-      }
-      .accessibilityLabel("PDF・Excelから時間割を取り込む")
-      Button("スクショ") { isShowingScreenshotImport = true }
-        .accessibilityLabel("スクショから時間割を取り込む")
+    .frame(maxWidth: .infinity)
   }
 
   // MARK: - 空状態（インポートへの導線）
@@ -383,22 +369,23 @@ struct TimetableListView: View {
     ContentUnavailableView {
       Label("\(selectedSemester.displayName)の時間割が未登録です", systemImage: "calendar.badge.plus")
     } description: {
-      Text("上の「ポータル」から直接ログインして取り込むか，「PDF / Excel」からダウンロード済みの学生時間割表を読み込めます．「スクショ」から画像を読み取り，修正して登録することもできます．「授業を追加」で1件ずつ手動登録もできます．")
+      Text("画面下の「取り込む」から，ポータル・PDF / Excel・スクショを選べます．「授業を追加」で1件ずつ手動登録もできます．")
     }
   }
 
   // MARK: - 一覧本体
 
   private var timetableList: some View {
-    List {
+    let assignmentsBySubject = AssignmentLectureMatcher.activeAssignmentsBySubject(
+      for: filteredLectures, in: assignments
+    )
+    return List {
       ForEach(lecturesByWeekday, id: \.weekday) { group in
         Section("\(group.weekday.shortName)曜日") {
           ForEach(group.lectures) { lecture in
             LectureRow(
               lecture: lecture,
-              assignments: AssignmentLectureMatcher.activeAssignments(
-                for: lecture, in: assignments
-              ),
+              assignments: assignmentsBySubject[lecture.subjectName, default: []],
               onAttendanceTap: { url in
                 attendanceUrl = AttendanceDestination(url: url)
               }
@@ -680,6 +667,8 @@ struct TimetableGrid: View {
   /// 選択中の授業（タップ時にアクションメニューを表示）
   @State private var selectedLecture: Lecture?
 
+  @State private var currentDate = Date()
+
   /// 表に並べる曜日（月〜金）
   private let days = Weekday.lectureDays
 
@@ -691,64 +680,101 @@ struct TimetableGrid: View {
   }
 
   var body: some View {
-    ScrollView {
-      Grid(horizontalSpacing: 4, verticalSpacing: 4) {
-        headerRow
-        ForEach(periods) { period in
-          GridRow {
-            periodLabel(period)
-            ForEach(days) { day in
-              cell(day: day, period: period.number)
+    let assignmentsBySubject = AssignmentLectureMatcher.activeAssignmentsBySubject(
+      for: lectures, in: assignments
+    )
+    GeometryReader { geometry in
+      // Gridの内容依存の幅計算を避け，空欄も授業セルも同じ有限幅にする．
+      let columnWidth = max(1, (geometry.size.width - 32
+        - GridConstants.periodColumnWidth - CGFloat(days.count) * 4) / CGFloat(days.count))
+      ScrollView {
+        VStack(alignment: .leading, spacing: 10) {
+          Text("現在 \(currentDate.formatted(.dateTime.weekday(.wide).hour().minute()))")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("現在日時 \(currentDate.formatted(.dateTime.weekday(.wide).hour().minute()))")
+          VStack(spacing: 4) {
+            headerRow(at: currentDate, columnWidth: columnWidth)
+            ForEach(periods) { period in
+              HStack(alignment: .top, spacing: 4) {
+                periodLabel(period)
+                ForEach(days) { day in
+                  cell(day: day, period: period.number,
+                       assignmentsBySubject: assignmentsBySubject)
+                    .frame(width: columnWidth)
+                    .overlay {
+                      if day.rawValue == Calendar.current.component(.weekday, from: currentDate) {
+                        RoundedRectangle(cornerRadius: GridConstants.cornerRadius)
+                          .strokeBorder(Color.accentColor.opacity(0.3), lineWidth: 1)
+                          .allowsHitTesting(false)
+                      }
+                    }
+                    .overlay {
+                      currentTimeBar(day: day, period: period, date: currentDate)
+                    }
+                }
+              }
             }
           }
         }
+        .padding(.horizontal)
+        .padding(.bottom, 12)
       }
-      .padding(.horizontal)
-      .padding(.bottom, 12)
     }
-    .confirmationDialog(
-      selectedLecture?.subjectName ?? "",
-      isPresented: Binding(
-        get: { selectedLecture != nil },
-        set: { if !$0 { selectedLecture = nil } }
-      ),
-      titleVisibility: .visible,
-      presenting: selectedLecture
-    ) { lecture in
-      if !lecture.attendanceRoomId.isEmpty,
-         let url = URL(string: "https://attendance.is.chibatech.ac.jp/attendance/class_room/\(lecture.attendanceRoomId)") {
-        Button("出席を登録") {
-          onAttendanceTap?(url)
-        }
+    .task {
+      while !Task.isCancelled {
+        currentDate = Date()
+        do { try await Task.sleep(for: .seconds(30)) }
+        catch { return }
       }
+    }
 
-      Button("この授業を削除", role: .destructive) {
-        onDelete(lecture)
-      }
-      Button("キャンセル", role: .cancel) {}
-    } message: { lecture in
-      let activeAssigns = AssignmentLectureMatcher.activeAssignments(for: lecture, in: assignments)
-      if activeAssigns.isEmpty {
-        Text(lecture.placeText)
-      } else {
-        let titles = activeAssigns.map { "・\($0.title)" }.joined(separator: "\n")
-        Text("\(lecture.placeText)\n\n【未提出の課題】\n\(titles)")
-      }
-    }
   }
 
   // MARK: - 部品
 
   /// ヘッダ行（左上の空セル＋曜日名）
-  private var headerRow: some View {
-    GridRow {
+  private func headerRow(at date: Date, columnWidth: CGFloat) -> some View {
+    HStack(spacing: 4) {
       Color.clear
         .frame(width: GridConstants.periodColumnWidth, height: 1)
       ForEach(days) { day in
         Text(day.shortName)
           .font(.subheadline.bold())
-          .frame(maxWidth: .infinity)
+          .frame(width: columnWidth)
+          .padding(.vertical, 6)
+          .foregroundStyle(day.rawValue == Calendar.current.component(.weekday, from: date)
+            ? Color.accentColor : Color.primary)
+          .background {
+            if day.rawValue == Calendar.current.component(.weekday, from: date) {
+              Capsule().fill(Color.accentColor.opacity(0.14))
+            }
+          }
+          .accessibilityLabel(day.rawValue == Calendar.current.component(.weekday, from: date)
+            ? "今日、\(day.shortName)曜日" : "\(day.shortName)曜日")
       }
+    }
+  }
+
+  /// 今日の列の中で、時限内の経過時間に合わせてバーを移動する。
+  @ViewBuilder
+  private func currentTimeBar(day: Weekday, period: ClassPeriod, date: Date) -> some View {
+    if day.rawValue == Calendar.current.component(.weekday, from: date),
+       let start = period.startDate(on: date),
+       let end = period.endDate(on: date),
+       date >= start, date < end {
+      GeometryReader { geometry in
+        let progress = date.timeIntervalSince(start) / end.timeIntervalSince(start)
+        ZStack(alignment: .leading) {
+          Capsule().fill(Color.red).frame(height: 2)
+          Circle().fill(Color.red).frame(width: 7, height: 7)
+        }
+        .shadow(color: Color(uiColor: .systemBackground), radius: 1)
+        .position(x: geometry.size.width / 2,
+                  y: geometry.size.height * progress)
+      }
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
     }
   }
 
@@ -767,12 +793,12 @@ struct TimetableGrid: View {
 
   /// 1セル（該当する授業があればカード，なければ空欄）
   @ViewBuilder
-  private func cell(day: Weekday, period: Int) -> some View {
+  private func cell(day: Weekday, period: Int,
+                    assignmentsBySubject: [String: [Assignment]]) -> some View {
     let cellLectures = lectures.filter { $0.weekday == day && $0.period == period }
     if let lecture = cellLectures.first {
       // このコマの授業に紐づく未提出課題の件数
-      let assignmentCount = AssignmentLectureMatcher
-        .activeAssignments(for: lecture, in: assignments).count
+      let assignmentCount = assignmentsBySubject[lecture.subjectName, default: []].count
       Button {
         selectedLecture = lecture
       } label: {
@@ -809,6 +835,37 @@ struct TimetableGrid: View {
         }
       }
       .buttonStyle(.plain)
+      // 押したコマを表示元にする．表全体に付けるとポップオーバーが画面中央を指す．
+      .confirmationDialog(
+        lecture.subjectName,
+        isPresented: Binding(
+          get: { selectedLecture?.persistentModelID == lecture.persistentModelID },
+          set: { isPresented in
+            if !isPresented, selectedLecture?.persistentModelID == lecture.persistentModelID {
+              selectedLecture = nil
+            }
+          }
+        ),
+        titleVisibility: .visible
+      ) {
+        if let url = AttendanceRoom.url(for: lecture.roomNumber) {
+          Button("出席を登録") {
+            onAttendanceTap?(url)
+          }
+        }
+        Button("この授業を削除", role: .destructive) {
+          onDelete(lecture)
+        }
+        Button("キャンセル", role: .cancel) {}
+      } message: {
+        let activeAssignments = assignmentsBySubject[lecture.subjectName, default: []]
+        if activeAssignments.isEmpty {
+          Text(lecture.placeText)
+        } else {
+          let titles = activeAssignments.map { "・\($0.title)" }.joined(separator: "\n")
+          Text("\(lecture.placeText)\n\n【未提出の課題】\n\(titles)")
+        }
+      }
     } else {
       RoundedRectangle(cornerRadius: GridConstants.cornerRadius)
         .fill(Color.gray.opacity(0.1))

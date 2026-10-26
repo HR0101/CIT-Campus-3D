@@ -46,6 +46,7 @@ struct CampusMapView: View {
 
   /// 場所一覧シートの表示フラグ
   @State private var isPlacePickerPresented = false
+  @State private var placePickerDetent: PresentationDetent = .medium
 
   /// 到着案内（VoiceOver）を一度だけ読み上げるためのフラグ（目的地が変わるとリセット）
   @State private var didAnnounceArrival = false
@@ -184,6 +185,9 @@ struct CampusMapView: View {
       PlacePickerView(currentLocation: locationService.currentLocation) { place in
         manualDestination = place
       }
+      .presentationDetents([.medium, .large], selection: $placePickerDetent)
+      .presentationDragIndicator(.visible)
+      .presentationBackgroundInteraction(.enabled(upThrough: .medium))
     }
     .sheet(item: $attendanceUrl) { destination in
       AttendanceSheetView(url: destination.url)
@@ -327,23 +331,34 @@ struct CampusMapView: View {
 
   /// 場所一覧ボタンと現在地ボタン
   private var controlButtons: some View {
-    VStack(spacing: 12) {
-      placeListButton
-      focusUserButton
+    GlassEffectContainer(spacing: 12) {
+      VStack(spacing: 12) {
+        placeListButton
+        focusUserButton
+      }
+      .buttonStyle(.glass)
+      .buttonBorderShape(.roundedRectangle(radius: 18))
     }
   }
 
   /// 場所一覧を開くボタン
   private var placeListButton: some View {
     Button {
+      placePickerDetent = .medium
       isPlacePickerPresented = true
     } label: {
-      Text("場所一覧")
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.cyan)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 44)
-        .background(.ultraThinMaterial, in: Capsule())
+      VStack(spacing: 4) {
+        Image(systemName: "map")
+          .font(.system(size: 18, weight: .medium))
+          .accessibilityHidden(true)
+        Text("場所一覧")
+          .font(.caption2.weight(.medium))
+      }
+      .foregroundStyle(.primary)
+      .padding(.vertical, 10)
+      .frame(minWidth: 64, minHeight: 56)
+      .fixedSize()
+      .contentShape(Rectangle())
     }
     .accessibilityLabel("場所一覧")
   }
@@ -353,12 +368,18 @@ struct CampusMapView: View {
     Button {
       viewModel.focusOnUserLocation(locationService.currentLocation)
     } label: {
-      Text("現在地")
-        .font(.subheadline.weight(.semibold))
-        .foregroundStyle(.cyan)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 44)
-        .background(.ultraThinMaterial, in: Capsule())
+      VStack(spacing: 4) {
+        Image(systemName: "location")
+          .font(.system(size: 18, weight: .medium))
+          .accessibilityHidden(true)
+        Text("現在地")
+          .font(.caption2.weight(.medium))
+      }
+      .foregroundStyle(.primary)
+      .padding(.vertical, 10)
+      .frame(minWidth: 64, minHeight: 56)
+      .fixedSize()
+      .contentShape(Rectangle())
     }
     .accessibilityLabel("現在地へ移動")
   }

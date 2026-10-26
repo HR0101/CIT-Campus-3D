@@ -52,6 +52,18 @@ struct SettingsView: View {
           Text("登録済みの授業期間・休講日です．「次の授業」の判定はこの学年暦に従い，休講日や長期休業中は授業を表示しません．")
         }
 
+        Section("manaba（課題の自動取得）") {
+          NavigationLink {
+            ManabaCredentialSetupView()
+          } label: {
+            VStack(alignment: .leading, spacing: 2) {
+              Text("manabaのID・パスワード")
+              Text(portalStore.isRegistered ? "登録済み" : "未登録・タップして登録")
+                .font(.caption).foregroundStyle(.secondary)
+            }
+          }
+        }
+
         // ポータル連携（時間割の自動入力）
         Section {
           NavigationLink {
@@ -81,7 +93,7 @@ struct SettingsView: View {
           } label: {
             Label {
               VStack(alignment: .leading, spacing: 2) {
-                Text("出席システム連携")
+                Text("出席システムのID・パスワード")
                 Text(attendanceStatusText)
                   .font(.caption)
                   .foregroundStyle(.secondary)

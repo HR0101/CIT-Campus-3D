@@ -16,6 +16,25 @@ enum AssignmentLectureMatcher {
   /// 部分一致での誤検出を防ぐための最短キー長（日本語2文字以上）
   private static let minimumKeyLength = 2
 
+  /// 表のセルを描くたびに全課題の文字列変換を繰り返さないよう，一括で照合する．
+  static func activeAssignmentsBySubject(
+    for lectures: [Lecture], in assignments: [Assignment]
+  ) -> [String: [Assignment]] {
+    let courses = Dictionary(grouping: assignments.filter { !$0.isDone }, by: \.courseName)
+      .map { (key: normalizedKey($0.key), assignments: $0.value) }
+      .filter { $0.key.count >= minimumKeyLength }
+    var result: [String: [Assignment]] = [:]
+    for subject in Set(lectures.map(\.subjectName)) {
+      let key = normalizedKey(subject)
+      guard key.count >= minimumKeyLength else { continue }
+      result[subject] = courses
+        .filter { $0.key.contains(key) || key.contains($0.key) }
+        .flatMap(\.assignments)
+        .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+    }
+    return result
+  }
+
   /// 指定した授業に紐づく未提出（未完了）の課題を，締切の早い順で返す．
   /// - Parameters:
   ///   - lecture: 対象の授業

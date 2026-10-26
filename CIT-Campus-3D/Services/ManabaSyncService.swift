@@ -226,8 +226,10 @@ final class ManabaSyncService: NSObject, WKNavigationDelegate {
         }
 
         let drafts = ManabaAssignmentMapper.makeDrafts(from: result)
+        // 一覧表を読めたときだけ「一覧に無い課題＝提出済み」と判定する（読めなかった場合に誤って完了にしないため）
+        let isListLoaded = result.error.isEmpty
         do {
-          try AssignmentImporter.upsert(drafts, into: modelContext)
+          try AssignmentImporter.upsert(drafts, into: modelContext, markMissingAsDone: isListLoaded)
           self.lastImportedCount = drafts.count
           self.finishSuccess()
         } catch {
