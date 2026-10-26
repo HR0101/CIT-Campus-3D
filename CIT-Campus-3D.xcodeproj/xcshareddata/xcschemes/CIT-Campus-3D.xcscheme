@@ -30,7 +30,8 @@
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
       <Testables>
-         <TestableReference skipped = "NO">
+         <TestableReference
+            skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "79C329E02FDBF65B007478FE"
@@ -38,6 +39,23 @@
                BlueprintName = "CIT-Campus-3DTests"
                ReferencedContainer = "container:CIT-Campus-3D.xcodeproj">
             </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "79C329EA2FDBF65B007478FE"
+               BuildableName = "CIT-Campus-3DUITests.xctest"
+               ReferencedContainer = "container:CIT-Campus-3D.xcodeproj">
+            </BuildableReference>
+            <SelectedTests>
+               <Test
+                  Identifier = "TimetableTabResponsivenessTests/testImportMenuAndCompactSheets()">
+               </Test>
+               <Test
+                  Identifier = "TimetableTabResponsivenessTests/testTabSwitchAndTimetableControlsRespond()">
+               </Test>
+            </SelectedTests>
          </TestableReference>
       </Testables>
    </TestAction>

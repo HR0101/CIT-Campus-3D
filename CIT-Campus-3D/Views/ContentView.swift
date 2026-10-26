@@ -39,6 +39,9 @@ struct ContentView: View {
   /// 起動・バックグラウンドからの復帰ごとに1回，自動取得する．
   @State private var needsManabaSyncOnOpen = true
 
+  /// タブの構造は固定し，時刻だけを更新する．
+  @State private var referenceDate = Date()
+
   /// 次の授業の判定サービス
   private let resolver = NextLectureResolver()
 
@@ -46,37 +49,42 @@ struct ContentView: View {
   private let routeService = RouteService()
 
   var body: some View {
-    // 毎分再評価して「次の授業」の切り替わりを自動で反映する
-    TimelineView(.everyMinute) { context in
-      let resolved = resolver.resolveUpcoming(from: lectures, now: context.date)
-      // 休講に該当する授業を「次の授業」から除外する
-      let upcoming = resolver.removingCancellations(resolved, changes: classChanges)
-      let nextLecture = upcoming.first
-      let scheduleStatus = AcademicCalendar.current.scheduleStatus(
-        on: context.date, calendar: .current
-      )
+    let resolved = resolver.resolveUpcoming(from: lectures, now: referenceDate)
+    let upcoming = resolver.removingCancellations(resolved, changes: classChanges)
+    let nextLecture = upcoming.first
+    let scheduleStatus = AcademicCalendar.current.scheduleStatus(
+      on: referenceDate, calendar: .current
+    )
 
-      TabView {
-        Tab("マップ", systemImage: "map.fill") {
-          CampusMapView(
-            locationService: locationService,
-            destinationBuilding: nextLecture?.lecture.building,
-            nextLecture: nextLecture,
-            emptyStateMessage: emptyLectureMessage(status: scheduleStatus),
-            todayClosureNote: todayClosureNote(status: scheduleStatus)
-          )
-        }
-        Tab("時間割", systemImage: "calendar") {
-          TimetableListView()
-        }
-        Tab("設定", systemImage: "gearshape") {
-          SettingsView()
-        }
+    // TimelineViewの更新コンテキストにTabViewやSwiftDataのクエリを入れない．
+    TabView {
+      Tab("マップ", systemImage: "map.fill") {
+        CampusMapView(
+          locationService: locationService,
+          destinationBuilding: nextLecture?.lecture.building,
+          nextLecture: nextLecture,
+          emptyStateMessage: emptyLectureMessage(status: scheduleStatus),
+          todayClosureNote: todayClosureNote(status: scheduleStatus)
+        )
       }
-      // 授業・現在地・設定・許可状態のいずれかが変わったら通知を予約し直す
-      .task(id: schedulingKey(upcoming: upcoming)) {
-        await rescheduleNotifications(upcoming: upcoming)
+      Tab("時間割", systemImage: "calendar") {
+        TimetableListView()
       }
+      Tab("設定", systemImage: "gearshape") {
+        SettingsView()
+      }
+    }
+    .task {
+      // タブ切り替えでは再起動せず，画面を破棄したらキャンセルする時計．
+      while !Task.isCancelled {
+        referenceDate = Date()
+        do { try await Task.sleep(for: .seconds(60)) }
+        catch { return }
+      }
+    }
+    // 授業・現在地・設定・許可状態のいずれかが変わったら通知を予約し直す
+    .task(id: schedulingKey(upcoming: upcoming)) {
+      await rescheduleNotifications(upcoming: upcoming)
     }
     .alert(
       "出席しますか？",
@@ -121,6 +129,7 @@ struct ContentView: View {
     .onChange(of: scenePhase) { _, phase in
       switch phase {
       case .active:
+        referenceDate = Date()
         // 復帰時に通知許可状態を取り直す（設定アプリでの変更を反映）．
         // 位置情報はマップタブのonAppearで開始するためここでは起動しない
         Task { await notifications.refreshAuthorizationStatus() }
