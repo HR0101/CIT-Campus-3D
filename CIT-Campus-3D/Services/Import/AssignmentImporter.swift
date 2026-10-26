@@ -18,6 +18,8 @@ struct AssignmentImportResult {
   let inserted: Int
   /// 既存を更新した件数
   let updated: Int
+  /// 一覧から消えたため完了（提出済み）にした件数
+  let completed: Int
 }
 
 /// 課題ドラフトをSwiftDataへ保存するインポータ
@@ -51,9 +53,15 @@ enum AssignmentImporter {
   }
 
   /// ドラフトを upsert する（保存まで行う．既存の重複も掃除する）
+  /// - Parameter markMissingAsDone: true のとき，ドラフトに含まれない未完了課題を提出済みとして完了にする．
+  ///   drafts が「未提出課題一覧の全件」であると保証できる場合（バックグラウンド同期）だけ true にする
   @MainActor
   @discardableResult
-  static func upsert(_ drafts: [AssignmentDraft], into context: ModelContext) throws -> AssignmentImportResult {
+  static func upsert(
+    _ drafts: [AssignmentDraft],
+    into context: ModelContext,
+    markMissingAsDone: Bool = false
+  ) throws -> AssignmentImportResult {
     let existing = try context.fetch(FetchDescriptor<Assignment>())
     // 既存の重複を畳んでからキー辞書を得る
     var byKey = collapseDuplicates(existing, in: context)
@@ -85,8 +93,19 @@ enum AssignmentImporter {
       }
     }
 
+    // 未提出一覧に載らなくなった課題は提出済みとみなして完了にする
+    var completed = 0
+    if markMissingAsDone {
+      let draftKeys = Set(drafts.map { key(url: $0.manabaURL, id: $0.manabaId) })
+      for (assignmentKey, assignment) in byKey
+      where !assignment.isDone && !draftKeys.contains(assignmentKey) {
+        assignment.isDone = true
+        completed += 1
+      }
+    }
+
     try context.save()
-    return AssignmentImportResult(inserted: inserted, updated: updated)
+    return AssignmentImportResult(inserted: inserted, updated: updated, completed: completed)
   }
 
   /// 既存の重複課題を掃除する（取り込みを伴わない．画面表示時などに呼ぶ）
