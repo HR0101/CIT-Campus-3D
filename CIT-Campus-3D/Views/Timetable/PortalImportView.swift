@@ -3,7 +3,7 @@
 //  CIT-Campus-3D
 //
 //  大学ポータル（UNIVERSAL PASSPORT）にアプリ内WebViewでログインし，表示中の時間割表を取り込む画面．
-//  認証情報はアプリで保存・取得せず，本人が公式サイトに直接ログインする方式（最も安全）．
+//  パスキーはSafariServices、登録済み認証情報による直接取り込みはWebViewを使用する．
 //  読み取りは表示中ページにJavaScript（PortalTimetableScraper）を注入して行う．
 //
 
@@ -319,6 +319,8 @@ struct PortalImportView: View {
   @Environment(\.dismiss) private var dismiss
   @Environment(PortalCredentialStore.self) private var credentialStore
   @State private var controller = PortalWebController()
+  @State private var usesDirectImport = false
+  @State private var isShowingPasskeyBrowser = false
 
   /// 取り込んだドラフト（非nilでプレビューを表示）
   @State private var draftBundle: DraftBundle?
@@ -332,8 +334,12 @@ struct PortalImportView: View {
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
-        hintBanner
-        PortalWebView(controller: controller, credentialStore: credentialStore)
+        if usesDirectImport {
+          hintBanner
+          PortalWebView(controller: controller, credentialStore: credentialStore)
+        } else {
+          loginOptions
+        }
       }
       .navigationTitle("ポータルから取り込み")
       .navigationBarTitleDisplayMode(.inline)
@@ -341,18 +347,24 @@ struct PortalImportView: View {
         ToolbarItem(placement: .cancellationAction) {
           Button("閉じる") { dismiss() }
         }
-        ToolbarItem(placement: .confirmationAction) {
-          Button {
-            scrape()
-          } label: {
-            if isScraping {
-              ProgressView()
-            } else {
-              Text("取り込む")
+        if usesDirectImport {
+          ToolbarItem(placement: .confirmationAction) {
+            Button {
+              scrape()
+            } label: {
+              if isScraping {
+                ProgressView()
+              } else {
+                Text("取り込む")
+              }
             }
+            .disabled(isScraping || controller.isLoading)
           }
-          .disabled(isScraping || controller.isLoading)
         }
+      }
+      .fullScreenCover(isPresented: $isShowingPasskeyBrowser) {
+        UniversityPortalBrowser(url: PortalConstants.portalURL)
+          .ignoresSafeArea()
       }
       .sheet(item: $draftBundle) { bundle in
         ImportPreviewView(drafts: bundle.drafts) { drafts, replaceExisting in
@@ -376,8 +388,50 @@ struct PortalImportView: View {
 
   // MARK: - ガイド表示
 
+  private var loginOptions: some View {
+    List {
+      Section {
+        Button {
+          isShowingPasskeyBrowser = true
+        } label: {
+          Label("パスキーでポータルを開く", systemImage: "person.badge.key.fill")
+        }
+        if onUseFileImport != nil {
+          Button {
+            onUseFileImport?()
+            dismiss()
+          } label: {
+            Label("保存した時間割を取り込む", systemImage: "doc")
+          }
+        }
+      } header: {
+        Text("パスキーでログイン")
+      } footer: {
+        Text("標準ブラウザで大学のログイン画面を開きます。パスキーで認証後、時間割をPDF／Excelでファイルに保存し、ブラウザを閉じて取り込んでください。ダウンロードできない場合は、ブラウザのメニューからSafariで開いて保存できます。")
+      }
+
+      Section {
+        Button {
+          usesDirectImport = true
+        } label: {
+          Label("ID・認証コードで直接取り込む", systemImage: "rectangle.and.text.magnifyingglass")
+        }
+      } header: {
+        Text("表示中の時間割を読み取る")
+      } footer: {
+        Text("ID・パスワードとワンタイムパスワードでログインし、時間割表を直接読み取ります。登録済みの認証情報がある場合は自動入力します。")
+      }
+    }
+  }
+
   private var hintBanner: some View {
     VStack(alignment: .leading, spacing: 6) {
+      Button {
+        usesDirectImport = false
+      } label: {
+        Label("ログイン方法を選び直す", systemImage: "chevron.backward")
+          .font(.caption)
+      }
       if credentialStore.isRegistered {
         // 認証情報が登録済み: 自動ログインが働く
         Label {
@@ -416,7 +470,7 @@ struct PortalImportView: View {
         }
 
         Label {
-          Text("2段階認証は「パスキー」ではなく「ワンタイムパスワード」を選んでください．アプリ内ブラウザではパスキーは使えません．")
+          Text("直接取り込みでは「ワンタイムパスワード」を選んでください。パスキーを使う場合は「ログイン方法を選び直す」から標準ブラウザを開けます。")
             .font(.caption)
         } icon: {
           Image(systemName: "exclamationmark.triangle.fill")
