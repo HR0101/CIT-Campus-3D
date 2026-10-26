@@ -62,16 +62,7 @@ struct AttendanceCredentialSetupView: View {
     } message: {
       Text(errorMessage ?? "")
     }
-    .confirmationDialog(
-      "専用の認証情報を削除しますか？",
-      isPresented: $showDeleteConfirm,
-      titleVisibility: .visible
-    ) {
-      Button("削除する", role: .destructive) { performDelete() }
-      Button("キャンセル", role: .cancel) {}
-    } message: {
-      Text("保存済みの出席システム専用のユーザーID・パスワードを端末から削除します．")
-    }
+
   }
 
   // MARK: - 「ポータルと同じ」場合の状態表示
@@ -139,6 +130,16 @@ struct AttendanceCredentialSetupView: View {
     Section {
       Button("専用の認証情報を削除", role: .destructive) {
         showDeleteConfirm = true
+      }
+      .confirmationDialog(
+        "専用の認証情報を削除しますか？",
+        isPresented: $showDeleteConfirm,
+        titleVisibility: .visible
+      ) {
+        Button("削除する", role: .destructive) { performDelete() }
+        Button("キャンセル", role: .cancel) {}
+      } message: {
+        Text("保存済みの出席システム専用のユーザーID・パスワードを端末から削除します．")
       }
     }
   }

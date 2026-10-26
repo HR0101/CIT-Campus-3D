@@ -60,16 +60,7 @@ struct PortalCredentialSetupView: View {
     } message: {
       Text(errorMessage ?? "")
     }
-    .confirmationDialog(
-      "認証情報を削除しますか？",
-      isPresented: $showDeleteConfirm,
-      titleVisibility: .visible
-    ) {
-      Button("削除する", role: .destructive) { performDelete() }
-      Button("キャンセル", role: .cancel) {}
-    } message: {
-      Text("保存済みのユーザーID・パスワード・ワンタイムパスワードのキーを端末から削除します．")
-    }
+
   }
 
   // MARK: - 登録状態
@@ -219,6 +210,16 @@ struct PortalCredentialSetupView: View {
     Section {
       Button("認証情報を削除", role: .destructive) {
         showDeleteConfirm = true
+      }
+      .confirmationDialog(
+        "認証情報を削除しますか？",
+        isPresented: $showDeleteConfirm,
+        titleVisibility: .visible
+      ) {
+        Button("削除する", role: .destructive) { performDelete() }
+        Button("キャンセル", role: .cancel) {}
+      } message: {
+        Text("保存済みのユーザーID・パスワード・ワンタイムパスワードのキーを端末から削除します．")
       }
     }
   }
