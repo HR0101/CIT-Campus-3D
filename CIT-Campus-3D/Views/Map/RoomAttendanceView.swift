@@ -30,6 +30,7 @@ struct RoomAttendanceView: View {
             .foregroundStyle(.secondary)
         }
       }
+      .scrollContentBackground(.hidden)
       .navigationTitle("教室番号から出席")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
@@ -41,5 +42,8 @@ struct RoomAttendanceView: View {
         AttendanceSheetView(url: destination.url)
       }
     }
+    .presentationDetents([.height(320), .large])
+    .presentationDragIndicator(.visible)
+    .task { isRoomFocused = true }
   }
 }

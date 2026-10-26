@@ -46,6 +46,7 @@ struct CampusMapView: View {
 
   /// 場所一覧シートの表示フラグ
   @State private var isPlacePickerPresented = false
+  @State private var placePickerDetent: PresentationDetent = .medium
 
   /// 到着案内（VoiceOver）を一度だけ読み上げるためのフラグ（目的地が変わるとリセット）
   @State private var didAnnounceArrival = false
@@ -184,6 +185,9 @@ struct CampusMapView: View {
       PlacePickerView(currentLocation: locationService.currentLocation) { place in
         manualDestination = place
       }
+      .presentationDetents([.medium, .large], selection: $placePickerDetent)
+      .presentationDragIndicator(.visible)
+      .presentationBackgroundInteraction(.enabled(upThrough: .medium))
     }
     .sheet(item: $attendanceUrl) { destination in
       AttendanceSheetView(url: destination.url)
@@ -327,18 +331,20 @@ struct CampusMapView: View {
 
   /// 場所一覧ボタンと現在地ボタン
   private var controlButtons: some View {
-    VStack(spacing: 0) {
-      placeListButton
-      Divider().overlay(.white.opacity(0.08)).frame(width: 32)
-      focusUserButton
+    GlassEffectContainer(spacing: 12) {
+      VStack(spacing: 12) {
+        placeListButton
+        focusUserButton
+      }
+      .buttonStyle(.glass)
+      .buttonBorderShape(.roundedRectangle(radius: 18))
     }
-    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
-    .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(.white.opacity(0.12)))
   }
 
   /// 場所一覧を開くボタン
   private var placeListButton: some View {
     Button {
+      placePickerDetent = .medium
       isPlacePickerPresented = true
     } label: {
       VStack(spacing: 4) {
@@ -348,7 +354,7 @@ struct CampusMapView: View {
         Text("場所一覧")
           .font(.caption2.weight(.medium))
       }
-      .foregroundStyle(.white)
+      .foregroundStyle(.primary)
       .padding(.vertical, 10)
       .frame(minWidth: 64, minHeight: 56)
       .fixedSize()
@@ -369,7 +375,7 @@ struct CampusMapView: View {
         Text("現在地")
           .font(.caption2.weight(.medium))
       }
-      .foregroundStyle(.white)
+      .foregroundStyle(.primary)
       .padding(.vertical, 10)
       .frame(minWidth: 64, minHeight: 56)
       .fixedSize()

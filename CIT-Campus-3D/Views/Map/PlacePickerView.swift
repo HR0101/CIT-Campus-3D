@@ -53,6 +53,7 @@ struct PlacePickerView: View {
           }
         }
       }
+      .scrollContentBackground(.hidden)
       .navigationTitle("場所を選んで案内")
       .navigationBarTitleDisplayMode(.inline)
       .searchable(text: $searchText, prompt: "建物・施設名で検索")
