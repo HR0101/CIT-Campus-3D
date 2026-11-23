@@ -425,7 +425,7 @@ struct PortalImportView: View {
   }
 
   private var hintBanner: some View {
-    VStack(alignment: .leading, spacing: 6) {
+    VStack(alignment: .leading, spacing: 8) {
       Button {
         usesDirectImport = false
       } label: {
@@ -435,38 +435,38 @@ struct PortalImportView: View {
       if credentialStore.isRegistered {
         // 認証情報が登録済み: 自動ログインが働く
         Label {
-          Text("登録済みの認証情報で自動ログインします．時間割表のページを開いて「取り込む」を押してください．")
+          Text("登録済みの認証情報で自動ログインします。時間割表のページを開いて「取り込む」を押してください。")
             .font(.caption)
         } icon: {
-          Image(systemName: "wand.and.stars")
-            .foregroundStyle(.cyan)
+          Image(systemName: "person.badge.key")
+            .foregroundStyle(CampusTheme.accent)
         }
         if !credentialStore.hasTOTPSecret {
           // OTPキー未登録: 6桁だけ手入力が必要なことを案内する
           Label {
-            Text("ID・パスワードと認証方法の選択までは自動で進みます．ワンタイムパスワードの6桁だけご自身で入力してください．設定の「CITポータル連携」でキーを登録すると，6桁も自動になります．")
+            Text("ID・パスワードと認証方法の選択までは自動で進みます。ワンタイムパスワードの6桁だけご自身で入力してください。設定の「CITポータル連携」でキーを登録すると、6桁も自動になります。")
               .font(.caption)
           } icon: {
             Image(systemName: "key.horizontal")
-              .foregroundStyle(.orange)
+              .foregroundStyle(CampusTheme.warning)
           }
         }
       } else {
         // 未登録: 従来どおり手動ログイン＋登録の案内
         Label {
-          Text("ポータルにログイン → 時間割表のページを開いて「取り込む」を押してください．")
+          Text("ポータルにログイン → 時間割表のページを開いて「取り込む」を押してください。")
             .font(.caption)
         } icon: {
           Image(systemName: "info.circle")
-            .foregroundStyle(.cyan)
+            .foregroundStyle(CampusTheme.accent)
         }
 
         Label {
-          Text("設定の「CITポータル連携」でID・パスワード・ワンタイムパスワードのキーを登録すると，次回から自動ログインできます．")
+          Text("設定の「CITポータル連携」でID・パスワード・ワンタイムパスワードのキーを登録すると、次回から自動ログインできます。")
             .font(.caption)
         } icon: {
           Image(systemName: "key.horizontal")
-            .foregroundStyle(.cyan)
+            .foregroundStyle(CampusTheme.accent)
         }
 
         Label {
@@ -474,13 +474,13 @@ struct PortalImportView: View {
             .font(.caption)
         } icon: {
           Image(systemName: "exclamationmark.triangle.fill")
-            .foregroundStyle(.orange)
+            .foregroundStyle(CampusTheme.warning)
         }
       }
 
       // ワンタイムパスワード未設定者向け: ファイル取り込みへ切り替える導線
       if onUseFileImport != nil {
-        Text("ワンタイムパスワードを設定していない場合は，CITポータルから時間割をPDF / Excelで保存し，下のボタンから取り込んでください．")
+        Text("ワンタイムパスワードを設定していない場合は、CITポータルから時間割をPDF / Excelで保存し、下のボタンから取り込んでください。")
           .font(.caption2)
           .foregroundStyle(.secondary)
         Button {
@@ -489,7 +489,7 @@ struct PortalImportView: View {
           dismiss()
         } label: {
           Label("ファイル（PDF / Excel）から取り込む", systemImage: "doc")
-            .font(.caption.bold())
+            .font(.caption.weight(.semibold))
         }
       }
 

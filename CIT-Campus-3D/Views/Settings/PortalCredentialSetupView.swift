@@ -76,7 +76,7 @@ struct PortalCredentialSetupView: View {
       } header: {
         Text("登録済み")
       } footer: {
-        Text("ログイン時にこの情報を自動入力します．出席システムのID・パスワードが同じ場合は自動チェックにも使われます（異なる場合は設定の「出席システム連携」で個別に登録できます）．内容を変えるには下のフォームで上書き保存してください．")
+        Text("ログイン時にこの情報を自動入力します。出席システムのID・パスワードが同じ場合は自動チェックにも使われます（異なる場合は設定の「出席システム連携」で個別に登録できます）。内容を変えるには下のフォームで上書き保存してください。")
       }
     }
   }
@@ -99,7 +99,7 @@ struct PortalCredentialSetupView: View {
       } label: {
         if didSave {
           Label("保存しました", systemImage: "checkmark.circle.fill")
-            .foregroundStyle(.green)
+            .foregroundStyle(CampusTheme.positive)
         } else {
           Text(store.isRegistered ? "認証情報を更新" : "保存")
         }
@@ -108,7 +108,7 @@ struct PortalCredentialSetupView: View {
     } header: {
       Text("認証情報")
     } footer: {
-      Text("ユーザーID・パスワードは必須です．ワンタイムパスワードのキーは任意で，入力するとポータルのOTPも自動入力します（manabaの課題取得はID・パスワードだけで動きます．出席システムはデフォルトでこの情報を使用します）．キーはスペースやハイフンが含まれていても自動で除去します．")
+      Text("ユーザーID・パスワードは必須です。ワンタイムパスワードのキーは任意で、入力するとポータルのOTPも自動入力します（manabaの課題取得はID・パスワードだけで動きます。出席システムはデフォルトでこの情報を使用します）。キーはスペースやハイフンが含まれていても自動で除去します。")
     }
   }
 
@@ -131,7 +131,7 @@ struct PortalCredentialSetupView: View {
     } header: {
       Text("動作確認")
     } footer: {
-      Text("Authenticatorアプリに表示される6桁と一致すれば，キーは正しく登録されています．")
+      Text("Authenticatorアプリに表示される6桁と一致すれば、キーは正しく登録されています。")
     }
   }
 
@@ -142,18 +142,18 @@ struct PortalCredentialSetupView: View {
       let remaining = TOTPGenerator.secondsRemaining(at: date)
       HStack {
         Text(code)
-          .font(.system(.title, design: .monospaced))
-          .bold()
+          .font(.system(.title, design: .monospaced).weight(.semibold))
           .monospacedDigit()
         Spacer()
         Text("残り\(remaining)秒")
           .font(.caption)
+          .monospacedDigit()
           .foregroundStyle(.secondary)
       }
     } else {
-      Text("このキーからはコードを生成できません．base32として正しいか確認してください．")
+      Text("このキーからはコードを生成できません。base32として正しいか確認してください。")
         .font(.caption)
-        .foregroundStyle(.red)
+        .foregroundStyle(CampusTheme.danger)
     }
   }
 
@@ -219,7 +219,7 @@ struct PortalCredentialSetupView: View {
         Button("削除する", role: .destructive) { performDelete() }
         Button("キャンセル", role: .cancel) {}
       } message: {
-        Text("保存済みのユーザーID・パスワード・ワンタイムパスワードのキーを端末から削除します．")
+        Text("保存済みのユーザーID・パスワード・ワンタイムパスワードのキーを端末から削除します。")
       }
     }
   }

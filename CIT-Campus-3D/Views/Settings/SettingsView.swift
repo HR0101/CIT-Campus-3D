@@ -38,7 +38,7 @@ struct SettingsView: View {
         } header: {
           Text("外観")
         } footer: {
-          Text("画面の配色を切り替えます．「システムに合わせる」を選ぶと，端末（スマホ）のダーク／ライト設定に自動で従います．3Dマップ画面は見やすさのため常にダーク表示です．")
+          Text("画面の配色を切り替えます。「システムに合わせる」を選ぶと、端末（スマホ）のダーク／ライト設定に自動で従います。3Dマップ画面は見やすさのため常にダーク表示です。")
         }
 
         // スケジュール
@@ -51,14 +51,14 @@ struct SettingsView: View {
         } header: {
           Text("スケジュール")
         } footer: {
-          Text("登録済みの授業期間・休講日です．「次の授業」の判定はこの学年暦に従い，休講日や長期休業中は授業を表示しません．")
+          Text("登録済みの授業期間・休講日です。「次の授業」の判定はこの学年暦に従い、休講日や長期休業中は授業を表示しません。")
         }
 
         Section("manaba（課題の自動取得）") {
           NavigationLink {
             ManabaCredentialSetupView()
           } label: {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 4) {
               Text("manabaのID・パスワード")
               Text(portalStore.isRegistered ? "登録済み" : "未登録・タップして登録")
                 .font(.caption).foregroundStyle(.secondary)
@@ -72,10 +72,11 @@ struct SettingsView: View {
             PortalCredentialSetupView()
           } label: {
             Label {
-              VStack(alignment: .leading, spacing: 2) {
+              VStack(alignment: .leading, spacing: 4) {
                 Text("CITポータル連携")
                 Text(portalStore.isRegistered ? "登録済み：\(portalStore.userID ?? "")" : "未登録")
                   .font(.caption)
+                  .monospacedDigit()
                   .foregroundStyle(.secondary)
               }
             } icon: {
@@ -85,7 +86,7 @@ struct SettingsView: View {
         } header: {
           Text("ポータル連携")
         } footer: {
-          Text("ユーザーID・パスワードを登録すると，アプリ起動時・バックグラウンドから戻ったときにmanabaの課題を自動取得します．ポータルの自動ログインにはワンタイムパスワードのキーも使用しますが，manabaの取得には不要です．出席システムのID・パスワードが同じ場合は，この情報がそのまま出席の自動チェックにも使われます（異なる場合は下の「出席システム連携」で個別に登録できます）．認証情報はこの端末内にのみ保存します．")
+          Text("ユーザーID・パスワードを登録すると、アプリ起動時・バックグラウンドから戻ったときにmanabaの課題を自動取得します。ポータルの自動ログインにはワンタイムパスワードのキーも使用しますが、manabaの取得には不要です。出席システムのID・パスワードが同じ場合は、この情報がそのまま出席の自動チェックにも使われます（異なる場合は下の「出席システム連携」で個別に登録できます）。認証情報はこの端末内にのみ保存します。")
         }
 
         // 出席システム連携（CITポータルと認証情報が異なる場合の個別登録）
@@ -94,7 +95,7 @@ struct SettingsView: View {
             AttendanceCredentialSetupView()
           } label: {
             Label {
-              VStack(alignment: .leading, spacing: 2) {
+              VStack(alignment: .leading, spacing: 4) {
                 Text("出席システムのID・パスワード")
                 Text(attendanceStatusText)
                   .font(.caption)
@@ -107,7 +108,7 @@ struct SettingsView: View {
         } header: {
           Text("出席システム連携")
         } footer: {
-          Text("出席の自動チェック・自動ログインに使うID・パスワードです．CITポータルと同じ場合は登録不要，異なる場合はここで出席システム専用に登録できます．")
+          Text("出席の自動チェック・自動ログインに使うID・パスワードです。CITポータルと同じ場合は登録不要、異なる場合はここで出席システム専用に登録できます。")
         }
 
         // 経路表示
@@ -116,7 +117,7 @@ struct SettingsView: View {
         } header: {
           Text("経路表示")
         } footer: {
-          Text("オンのとき，キャンパスから離れている間は徒歩ルートと「教室まで約N分」を表示しません．大学のすぐ近く（約\(Int(Campus.routeVicinityRadiusMeters))m以内）に入ると自動で表示されます．")
+          Text("オンのとき、キャンパスから離れている間は徒歩ルートと「教室まで約N分」を表示しません。大学のすぐ近く（約\(Int(Campus.routeVicinityRadiusMeters))m以内）に入ると自動で表示されます。")
         }
 
         // 授業前リマインダー
@@ -132,7 +133,7 @@ struct SettingsView: View {
         } header: {
           Text("授業前リマインダー")
         } footer: {
-          Text("次の授業の開始時刻の前に通知します．")
+          Text("次の授業の開始時刻の前に通知します。")
         }
 
         // 出発リマインダー
@@ -148,7 +149,7 @@ struct SettingsView: View {
         } header: {
           Text("出発リマインダー")
         } footer: {
-          Text("今いる場所から次の講義棟までの徒歩時間を逆算し，出発すべき時刻に通知します．余裕時間を足すと，その分だけ早めに通知します．")
+          Text("今いる場所から次の講義棟までの徒歩時間を逆算し、出発すべき時刻に通知します。余裕時間を足すと、その分だけ早めに通知します。")
         }
 
         // 課題の締切リマインダー
@@ -166,12 +167,13 @@ struct SettingsView: View {
               }
             }
             LabeledContent("予約中の通知", value: "\(notifications.scheduledAssignmentReminderCount)件")
+              .monospacedDigit()
             Button("テスト通知を送る（5秒後）") {
               Task {
                 let sent = await notifications.sendTestAssignmentNotification()
                 testNotificationMessage = sent
-                  ? "5秒後に課題リマインダーのテスト通知が届きます．"
-                  : "通知が許可されていないため送信できませんでした．"
+                  ? "5秒後に課題リマインダーのテスト通知が届きます。"
+                  : "通知が許可されていないため送信できませんでした。"
               }
             }
             if let testNotificationMessage {
@@ -183,7 +185,7 @@ struct SettingsView: View {
         } header: {
           Text("課題リマインダー")
         } footer: {
-          Text("manabaから取り込んだ未提出課題の締切前に通知します．設定時刻を過ぎている課題も，締切前であれば直前フォロー通知を予約します．")
+          Text("manabaから取り込んだ未提出課題の締切前に通知します。設定時刻を過ぎている課題も、締切前であれば直前フォロー通知を予約します。")
         }
 
         // 通知が許可されていない場合の案内
@@ -193,7 +195,7 @@ struct SettingsView: View {
               openAppSettings()
             }
           } footer: {
-            Text("通知がオフになっています．リマインダーを受け取るには，設定アプリから通知を許可してください．")
+            Text("通知がオフになっています。リマインダーを受け取るには、設定アプリから通知を許可してください。")
           }
         }
 
@@ -203,6 +205,7 @@ struct SettingsView: View {
             Text("バージョン")
             Spacer()
             Text("\(AppMetadata.version)（\(AppMetadata.build)）")
+              .monospacedDigit()
               .foregroundStyle(.secondary)
           }
           NavigationLink {
@@ -223,7 +226,7 @@ struct SettingsView: View {
         } header: {
           Text("アプリについて")
         } footer: {
-          Text("本アプリは千葉工業大学・manabaの公式アプリではありません（非公認の個人開発アプリです）．表示内容は公式情報で必ずご確認ください．")
+          Text("本アプリは千葉工業大学・manabaの公式アプリではありません（非公認の個人開発アプリです）。表示内容は公式情報で必ずご確認ください。")
         }
       }
       .navigationTitle("設定")

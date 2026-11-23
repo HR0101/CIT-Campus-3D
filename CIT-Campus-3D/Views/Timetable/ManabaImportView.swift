@@ -249,20 +249,20 @@ struct ManabaImportView: View {
   // MARK: - ガイド表示
 
   private var hintBanner: some View {
-    VStack(alignment: .leading, spacing: 6) {
+    VStack(alignment: .leading, spacing: 8) {
       if credentialStore.isRegistered {
         Label {
-          Text("登録済みの認証情報で自動ログインし，未提出課題の一覧を開きます．一覧が表示されたら「取り込む」を押してください．")
+          Text("登録済みの認証情報で自動ログインし、未提出課題の一覧を開きます。一覧が表示されたら「取り込む」を押してください。")
             .font(.caption)
         } icon: {
-          Image(systemName: "wand.and.stars").foregroundStyle(.cyan)
+          Image(systemName: "person.badge.key").foregroundStyle(CampusTheme.accent)
         }
       } else {
         Label {
-          Text("設定の「CITポータル連携」でMARINE ID・パスワードを登録すると，manabaにも自動ログインできます．未登録の場合は手動でログインしてください．")
+          Text("設定の「CITポータル連携」でMARINE ID・パスワードを登録すると、manabaにも自動ログインできます。未登録の場合は手動でログインしてください。")
             .font(.caption)
         } icon: {
-          Image(systemName: "key.horizontal").foregroundStyle(.cyan)
+          Image(systemName: "key.horizontal").foregroundStyle(CampusTheme.accent)
         }
       }
       if !controller.currentHost.isEmpty {
@@ -272,7 +272,7 @@ struct ManabaImportView: View {
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.horizontal)
+    .padding(.horizontal, 16)
     .padding(.vertical, 8)
     .background(.ultraThinMaterial)
   }
@@ -338,15 +338,17 @@ struct AssignmentImportPreviewView: View {
               if let due = draft.dueDate {
                 Label("締切 \(Self.dueFormatter.string(from: due))", systemImage: "clock.badge.exclamationmark")
                   .font(.caption)
-                  .foregroundStyle(.orange)
+                  .monospacedDigit()
+                  .foregroundStyle(CampusTheme.warning)
               }
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, 4)
           }
         } header: {
           Text("\(drafts.count)件の課題")
+            .monospacedDigit()
         } footer: {
-          Text("既に取り込み済みの課題は重複せず，締切などの内容だけ最新に更新されます．")
+          Text("既に取り込み済みの課題は重複せず、締切などの内容だけ最新に更新されます。")
         }
       }
       .navigationTitle("課題の取り込み")

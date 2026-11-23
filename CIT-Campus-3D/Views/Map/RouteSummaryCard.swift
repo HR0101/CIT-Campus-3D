@@ -18,8 +18,6 @@ struct RouteSummaryCard: View {
     static let secondsPerMinute: Double = 60
     /// km表示に切り替える境界（メートル）
     static let metersPerKilometer: Double = 1_000
-    /// カードの角丸半径
-    static let cornerRadius: CGFloat = 14
   }
 
   /// 目的地の棟名
@@ -57,27 +55,29 @@ struct RouteSummaryCard: View {
   }
 
   var body: some View {
-    HStack(spacing: 14) {
+    HStack(spacing: 12) {
       Image(systemName: "figure.walk")
-        .font(.title2)
-        .foregroundStyle(.cyan)
+        .font(.system(size: 18, weight: .medium))
+        .foregroundStyle(CampusTheme.accent)
+        .frame(width: 24)
 
       VStack(alignment: .leading, spacing: 2) {
         Text(titleText)
-          .font(.headline)
-          .foregroundStyle(.primary)
+          .font(.subheadline.weight(.medium))
+          .foregroundStyle(CampusTheme.textPrimary)
           .lineLimit(2)
           .minimumScaleFactor(0.85)
         Text("\(travelTimeText)・\(distanceText)")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
+          .font(.caption)
+          .monospacedDigit()
+          .foregroundStyle(CampusTheme.textSecondary)
           .lineLimit(1)
           .minimumScaleFactor(0.85)
       }
 
       Spacer()
     }
-    .padding()
-    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: FormatConstants.cornerRadius))
+    .padding(16)
+    .campusFloatingCard()
   }
 }

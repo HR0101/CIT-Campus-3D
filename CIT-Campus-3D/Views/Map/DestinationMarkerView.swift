@@ -2,63 +2,41 @@
 //  DestinationMarkerView.swift
 //  CIT-Campus-3D
 //
-//  目的の講義棟を示すカスタムピン．パルスアニメーションで視線を誘導する．
+//  目的の講義棟を示すカスタムピン．
+//  常時発光パルスを排し，単一インディゴアクセントと静かな外周リングで優先度を示す．
 //
 
 import SwiftUI
 
-/// 目的地ハイライト用のパルスアニメーション付きマーカー
+/// 目的地ハイライト用の建築製図風マーカー
 struct DestinationMarkerView: View {
 
-  /// マーカーの見た目に関する定数
+  /// マーカーの見た目に関する定数（4ptスケール）
   private enum MarkerConstants {
-    /// 中心円の直径
-    static let coreSize: CGFloat = 44
-    /// パルスの最大拡大率
-    static let pulseMaxScale: CGFloat = 2.4
-    /// パルス1周期の秒数
-    static let pulseDuration: Double = 1.6
-    /// アイコンのフォントサイズ
-    static let iconFontSize: CGFloat = 18
-    /// 白フチの太さ
+    static let outerRingSize: CGFloat = 52
+    static let coreSize: CGFloat = 40
+    static let iconFontSize: CGFloat = 16
     static let strokeWidth: CGFloat = 2
-    /// 発光シャドウの半径
-    static let glowRadius: CGFloat = 10
   }
-
-  /// パルスアニメーションの進行フラグ
-  @State private var isPulsing = false
-
-  /// 視差効果を減らす設定（オン時はループアニメーションを止める）
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     ZStack {
-      // 外側へ広がって消えるパルス
+      // 位置の焦点を整える静かな外周ヘアラインリング
       Circle()
-        .fill(Color.cyan.opacity(0.35))
-        .frame(width: MarkerConstants.coreSize, height: MarkerConstants.coreSize)
-        .scaleEffect(isPulsing ? MarkerConstants.pulseMaxScale : 1.0)
-        .opacity(isPulsing ? 0 : 0.8)
+        .fill(CampusTheme.accent.opacity(0.14))
+        .overlay(
+          Circle().stroke(CampusTheme.accent.opacity(0.42), lineWidth: 1)
+        )
+        .frame(width: MarkerConstants.outerRingSize, height: MarkerConstants.outerRingSize)
 
       // 中心のピン本体
       Image(systemName: "graduationcap.fill")
-        .font(.system(size: MarkerConstants.iconFontSize, weight: .bold))
+        .font(.system(size: MarkerConstants.iconFontSize, weight: .medium))
         .foregroundStyle(.white)
         .frame(width: MarkerConstants.coreSize, height: MarkerConstants.coreSize)
-        .background(Circle().fill(Color.cyan))
+        .background(Circle().fill(CampusTheme.accentFill))
         .overlay(Circle().stroke(.white, lineWidth: MarkerConstants.strokeWidth))
-        .shadow(color: .cyan.opacity(0.8), radius: MarkerConstants.glowRadius)
-    }
-    .onAppear {
-      // Reduce Motionが有効なときはループするパルスを止め，静止したピンのみで示す
-      guard !reduceMotion else { return }
-      withAnimation(
-        .easeOut(duration: MarkerConstants.pulseDuration)
-        .repeatForever(autoreverses: false)
-      ) {
-        isPulsing = true
-      }
+        .shadow(color: .black.opacity(0.24), radius: 6, y: 2)
     }
   }
 }

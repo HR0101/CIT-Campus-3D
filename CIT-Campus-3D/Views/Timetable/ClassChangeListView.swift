@@ -201,11 +201,11 @@ struct ClassChangeListView: View {
       Label("休講・補講はありません", systemImage: "calendar.badge.checkmark")
     } description: {
       if credentialStore.isRegistered && !credentialStore.hasTOTPSecret {
-        Text("ポータルの休講・補講を自動取得するには，2段階認証が必要です．設定の「CITポータル連携」でワンタイムパスワードのキーを登録してください．")
+        Text("ポータルの休講・補講を自動取得するには、2段階認証が必要です。設定の「CITポータル連携」でワンタイムパスワードのキーを登録してください。")
       } else if !credentialStore.isRegistered {
-        Text("設定の「CITポータル連携」でMARINE ID・パスワード・ワンタイムパスワードのキーを登録すると，休講・補講を自動で取得します．")
+        Text("設定の「CITポータル連携」でMARINE ID・パスワード・ワンタイムパスワードのキーを登録すると、休講・補講を自動で取得します。")
       } else {
-        Text("「今すぐ取得」を押すと，ポータルの「時間割変更」から休講・補講を取得します．")
+        Text("「今すぐ取得」を押すと、ポータルの「時間割変更」から休講・補講を取得します。")
       }
     } actions: {
       if changeSync.canSync(credentialStore: credentialStore) {

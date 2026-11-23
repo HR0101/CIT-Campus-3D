@@ -306,39 +306,43 @@ struct TimetableListView: View {
   }
 
   private var timetableShortcuts: some View {
-    HStack(spacing: 10) {
+    HStack(spacing: 12) {
       NavigationLink(value: Destination.assignments) {
         shortcutLabel("課題", detail: upcomingAssignments.isEmpty ? "課題を確認" : "期限内 \(upcomingAssignments.count)件",
-                      symbol: "checklist", tint: .blue)
+                      symbol: "checklist", tint: CampusTheme.accent)
       }
       NavigationLink(value: Destination.classChanges) {
-        shortcutLabel("休講・補講", detail: "授業の変更を確認", symbol: "calendar.badge.clock", tint: .orange)
+        shortcutLabel("休講・補講", detail: "授業の変更を確認", symbol: "calendar.badge.clock", tint: CampusTheme.warning)
       }
     }
     .buttonStyle(.plain)
-    .padding(.horizontal)
+    .padding(.horizontal, 16)
     .padding(.bottom, 12)
   }
 
   private func shortcutLabel(_ title: String, detail: String, symbol: String, tint: Color) -> some View {
-    HStack(spacing: 10) {
+    HStack(spacing: 12) {
       Image(systemName: symbol)
         .font(.system(size: 17, weight: .medium))
         .foregroundStyle(tint)
-        .frame(width: 34, height: 34)
-        .background(tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+        .frame(width: 24, height: 24)
         .accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 3) {
+      VStack(alignment: .leading, spacing: 4) {
         Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-        Text(detail).font(.caption2).foregroundStyle(.secondary)
+        Text(detail)
+          .font(.caption2)
+          .monospacedDigit()
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .minimumScaleFactor(0.9)
       }
       Spacer(minLength: 0)
     }
-    .padding(12)
+    .padding(16)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-    .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.06)))
-    .contentShape(RoundedRectangle(cornerRadius: 16))
+    .background(CampusTheme.cardSurface, in: RoundedRectangle(cornerRadius: CampusTheme.cardRadius))
+    .overlay(RoundedRectangle(cornerRadius: CampusTheme.cardRadius).strokeBorder(CampusTheme.hairline, lineWidth: 1))
+    .contentShape(RoundedRectangle(cornerRadius: CampusTheme.cardRadius))
   }
 
   private var timetableControls: some View {
@@ -353,8 +357,8 @@ struct TimetableListView: View {
       .pickerStyle(.segmented)
       .frame(width: 120)
     }
-    .padding(.horizontal)
-    .padding(.bottom, 10)
+    .padding(.horizontal, 16)
+    .padding(.bottom, 12)
   }
 
   /// 取り込み方法は1つのメニューから選ぶ．
@@ -381,7 +385,7 @@ struct TimetableListView: View {
     ContentUnavailableView {
       Label("\(selectedSemester.displayName)の時間割が未登録です", systemImage: "calendar.badge.plus")
     } description: {
-      Text("画面下の「取り込む」から，ポータル・PDF / Excel・スクショを選べます．「授業を追加」で1件ずつ手動登録もできます．")
+      Text("画面下の「取り込む」から、ポータル・PDF / Excel・スクショを選べます。「授業を追加」で1件ずつ手動登録もできます。")
     }
   }
 
@@ -529,9 +533,9 @@ struct TimetableListView: View {
   private func deleteMessage(for scope: DeleteScope) -> String {
     switch scope {
     case .currentSemester:
-      return "\(selectedSemester.displayName)の\(filteredLectures.count)コマを削除します．この操作は取り消せません．"
+      return "\(selectedSemester.displayName)の\(filteredLectures.count)コマを削除します。この操作は取り消せません。"
     case .all:
-      return "登録されている全\(lectures.count)コマを削除します．この操作は取り消せません．"
+      return "登録されている全\(lectures.count)コマを削除します。この操作は取り消せません。"
     }
   }
 
@@ -583,11 +587,11 @@ struct LectureRow: View {
             onAttendanceTap?(url)
           } label: {
             Text("出席")
-              .font(.caption.bold())
-              .padding(.horizontal, 10)
+              .font(.caption.weight(.medium))
+              .padding(.horizontal, 12)
               .padding(.vertical, 4)
-              .background(Color.cyan.opacity(0.15), in: Capsule())
-              .foregroundStyle(.cyan)
+              .background(CampusTheme.accentTint, in: RoundedRectangle(cornerRadius: CampusTheme.controlRadius))
+              .foregroundStyle(CampusTheme.accent)
           }
         }
       }
@@ -606,7 +610,8 @@ struct LectureRow: View {
       if let nearestDueText {
         Label(nearestDueText, systemImage: "calendar.badge.clock")
           .font(.caption)
-          .foregroundStyle(.orange)
+          .monospacedDigit()
+          .foregroundStyle(CampusTheme.warning)
       }
     }
     .padding(.vertical, 2)
@@ -634,19 +639,21 @@ struct AssignmentBadge: View {
   var body: some View {
     if compact {
       Text("\(count)")
-        .font(.system(size: 10, weight: .bold))
+        .font(.system(size: 10, weight: .semibold))
+        .monospacedDigit()
         .foregroundStyle(.white)
-        .padding(.horizontal, 5)
-        .padding(.vertical, 1)
-        .background(Capsule().fill(Color.orange))
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .background(RoundedRectangle(cornerRadius: CampusTheme.tagRadius).fill(CampusTheme.warning))
         .accessibilityLabel("課題\(count)件")
     } else {
       Label("課題\(count)", systemImage: "list.clipboard.fill")
-        .font(.caption2.bold())
+        .font(.caption2.weight(.semibold))
+        .monospacedDigit()
         .foregroundStyle(.white)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 8)
         .padding(.vertical, 2)
-        .background(Capsule().fill(Color.orange))
+        .background(RoundedRectangle(cornerRadius: CampusTheme.tagRadius).fill(CampusTheme.warning))
         .accessibilityLabel("課題\(count)件")
     }
   }
@@ -700,9 +707,10 @@ struct TimetableGrid: View {
       let columnWidth = max(1, (geometry.size.width - 32
         - GridConstants.periodColumnWidth - CGFloat(days.count) * 4) / CGFloat(days.count))
       ScrollView {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
           Text("現在 \(currentDate.formatted(.dateTime.weekday(.wide).hour().minute()))")
             .font(.caption.weight(.medium))
+            .monospacedDigit()
             .foregroundStyle(.secondary)
             .accessibilityLabel("現在日時 \(currentDate.formatted(.dateTime.weekday(.wide).hour().minute()))")
           VStack(spacing: 4) {
@@ -751,15 +759,16 @@ struct TimetableGrid: View {
       Color.clear
         .frame(width: GridConstants.periodColumnWidth, height: 1)
       ForEach(days) { day in
+        let isToday = day.rawValue == Calendar.current.component(.weekday, from: date)
         Text(day.shortName)
-          .font(.subheadline.bold())
+          .font(.subheadline.weight(.semibold))
           .frame(width: columnWidth)
           .padding(.vertical, 6)
-          .foregroundStyle(day.rawValue == Calendar.current.component(.weekday, from: date)
-            ? Color.accentColor : Color.primary)
+          .foregroundStyle(isToday ? CampusTheme.accent : Color.primary)
           .background {
-            if day.rawValue == Calendar.current.component(.weekday, from: date) {
-              Capsule().fill(Color.accentColor.opacity(0.14))
+            if isToday {
+              RoundedRectangle(cornerRadius: CampusTheme.controlRadius)
+                .fill(CampusTheme.accentTint)
             }
           }
           .accessibilityLabel(day.rawValue == Calendar.current.component(.weekday, from: date)
@@ -794,9 +803,11 @@ struct TimetableGrid: View {
   private func periodLabel(_ period: ClassPeriod) -> some View {
     VStack(spacing: 2) {
       Text("\(period.number)")
-        .font(.subheadline.bold())
+        .font(.subheadline.weight(.semibold))
+        .monospacedDigit()
       Text(String(format: "%d:%02d", period.startHour, period.startMinute))
-        .font(.system(size: 9))
+        .font(.system(size: 10))
+        .monospacedDigit()
         .foregroundStyle(.secondary)
     }
     .frame(width: GridConstants.periodColumnWidth)

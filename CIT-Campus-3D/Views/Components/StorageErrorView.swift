@@ -19,7 +19,7 @@ struct StorageErrorView: View {
     VStack(spacing: 16) {
       Image(systemName: "externaldrive.badge.exclamationmark")
         .font(.system(size: 48))
-        .foregroundStyle(.orange)
+        .foregroundStyle(CampusTheme.warning)
 
       Text("データの保存領域を初期化できませんでした")
         .font(.headline)
@@ -30,7 +30,7 @@ struct StorageErrorView: View {
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
 
-      Text("アプリを再起動しても解決しない場合は，再インストールをお試しください．")
+      Text("アプリを再起動しても解決しない場合は、再インストールをお試しください。")
         .font(.footnote)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
@@ -42,6 +42,6 @@ struct StorageErrorView: View {
 }
 
 #Preview {
-  StorageErrorView(message: "ModelContainerの生成に失敗しました．")
+  StorageErrorView(message: "ModelContainerの生成に失敗しました。")
     .preferredColorScheme(.dark)
 }

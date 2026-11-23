@@ -10,11 +10,6 @@ import SwiftUI
 /// 次の授業の情報カード
 struct NextLectureCard: View {
 
-  /// カードの見た目に関する定数
-  private enum CardConstants {
-    static let cornerRadius: CGFloat = 14
-  }
-
   /// 次の授業の判定結果
   let result: NextLectureResult
 
@@ -34,30 +29,31 @@ struct NextLectureCard: View {
   }
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
+    VStack(alignment: .leading, spacing: 8) {
       HStack(spacing: 8) {
         Text(badgeText)
-          .font(.caption.bold())
+          .font(.caption2.weight(.medium))
           .padding(.horizontal, 8)
-          .padding(.vertical, 3)
+          .padding(.vertical, 4)
           .background(
-            result.isOngoing ? Color.orange.opacity(0.25) : Color.cyan.opacity(0.25),
-            in: Capsule()
+            result.isOngoing ? CampusTheme.warning.opacity(0.14) : CampusTheme.accentTint,
+            in: RoundedRectangle(cornerRadius: CampusTheme.tagRadius)
           )
-          .foregroundStyle(result.isOngoing ? .orange : .cyan)
+          .foregroundStyle(result.isOngoing ? CampusTheme.warning : CampusTheme.accent)
 
         Text(scheduleText)
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .monospacedDigit()
+          .foregroundStyle(CampusTheme.textSecondary)
       }
 
       Text(result.lecture.subjectName)
-        .font(.headline)
-        .foregroundStyle(.primary)
+        .font(.headline.weight(.medium))
+        .foregroundStyle(CampusTheme.textPrimary)
         .lineLimit(2)
         .minimumScaleFactor(0.85)
 
-      HStack(alignment: .bottom) {
+      HStack(alignment: .bottom, spacing: 12) {
         HStack(spacing: 12) {
           Label(result.lecture.placeText, systemImage: "building.2")
           if !result.lecture.teacherName.isEmpty {
@@ -65,7 +61,7 @@ struct NextLectureCard: View {
           }
         }
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(CampusTheme.textSecondary)
         .lineLimit(1)
 
         Spacer(minLength: 8)
@@ -76,17 +72,17 @@ struct NextLectureCard: View {
             onAttendanceTap?(url)
           } label: {
             Label("出席", systemImage: "checkmark.circle")
-              .font(.caption.bold())
-              .padding(.horizontal, 10)
+              .font(.caption.weight(.medium))
+              .padding(.horizontal, 12)
               .padding(.vertical, 6)
-              .background(Color.cyan.opacity(0.15), in: Capsule())
-              .foregroundStyle(.cyan)
+              .background(CampusTheme.accentTint, in: RoundedRectangle(cornerRadius: CampusTheme.controlRadius))
+              .foregroundStyle(CampusTheme.accent)
           }
         }
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding()
-    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CardConstants.cornerRadius))
+    .padding(16)
+    .campusFloatingCard()
   }
 }

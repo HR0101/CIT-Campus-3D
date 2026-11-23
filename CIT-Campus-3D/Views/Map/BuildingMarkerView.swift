@@ -3,7 +3,7 @@
 //  CIT-Campus-3D
 //
 //  すべての講義棟を示す常設マーカー．
-//  目的地のパルスピン（DestinationMarkerView）より控えめな見た目にして，
+//  目的地のピン（DestinationMarkerView）より控えめな設計図風マークにして，
 //  「次の授業の棟」との視覚的な優先順位をつける．
 //
 
@@ -12,14 +12,11 @@ import SwiftUI
 /// 講義棟の常設マーカー（棟番号入りの小さなバッジ）
 struct BuildingMarkerView: View {
 
-  /// マーカーの見た目に関する定数
+  /// マーカーの見た目に関する定数（4ptスケール）
   private enum MarkerConstants {
-    /// バッジの直径
-    static let badgeSize: CGFloat = 26
-    /// フチの太さ
+    static let badgeSize: CGFloat = 24
     static let strokeWidth: CGFloat = 1
-    /// 影の半径
-    static let shadowRadius: CGFloat = 3
+    static let shadowRadius: CGFloat = 2
   }
 
   /// 表示する講義棟
@@ -33,13 +30,13 @@ struct BuildingMarkerView: View {
 
   var body: some View {
     Text(numberText)
-      .font(.caption.bold())
+      .font(.caption2.weight(.medium))
+      .monospacedDigit()
       .foregroundStyle(.white)
       .frame(width: MarkerConstants.badgeSize, height: MarkerConstants.badgeSize)
-      .background(Circle().fill(Color(white: 0.22)))
-      .overlay(Circle().stroke(Color.cyan.opacity(0.6), lineWidth: MarkerConstants.strokeWidth))
-      // 明るいベース地図（positron）でも輪郭が沈まないよう定義された暗い影を付ける
-      .shadow(color: .black.opacity(0.45), radius: MarkerConstants.shadowRadius)
+      .background(Circle().fill(Color(red: 0.102, green: 0.118, blue: 0.157)))
+      .overlay(Circle().stroke(Color.white.opacity(0.28), lineWidth: MarkerConstants.strokeWidth))
+      .shadow(color: .black.opacity(0.30), radius: MarkerConstants.shadowRadius, y: 1)
   }
 }
 
@@ -50,16 +47,21 @@ struct BuildingAnnotationView: View {
   let building: CampusBuilding
 
   var body: some View {
-    VStack(spacing: 2) {
+    VStack(spacing: 4) {
       BuildingMarkerView(building: building)
       Text(building.displayName)
-        .font(.caption2.bold())
+        .font(.caption2.weight(.medium))
         .foregroundStyle(.white)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 8)
         .padding(.vertical, 2)
-        .background(Color.black.opacity(0.7), in: Capsule())
-        // 明るいベース地図でも縁が分かるよう細い境界線を足す
-        .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
+        .background(
+          Color(red: 0.067, green: 0.078, blue: 0.110).opacity(0.86),
+          in: RoundedRectangle(cornerRadius: 6)
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: 6)
+            .strokeBorder(.white.opacity(0.18), lineWidth: 0.5)
+        )
     }
   }
 }

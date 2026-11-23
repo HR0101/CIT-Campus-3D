@@ -170,19 +170,19 @@ struct CampusMapView: View {
       .ignoresSafeArea()
 
       topPanel
-        .padding(.horizontal)
+        .padding(.horizontal, 16)
         .padding(.top, 8)
     }
     .overlay(alignment: .bottomTrailing) {
       controlButtons
-        .padding(.trailing)
-        .padding(.bottom, 56)
+        .padding(.trailing, 16)
+        .padding(.bottom, 48)
     }
     .overlay(alignment: .bottomLeading) {
       // OpenStreetMapデータの帰属表示（ODbL上，地図に常時表示が必要）
       mapAttribution
-        .padding(.leading, 10)
-        .padding(.bottom, 56)
+        .padding(.leading, 16)
+        .padding(.bottom, 48)
     }
     .sheet(isPresented: $isPlacePickerPresented) {
       PlacePickerView(currentLocation: locationService.currentLocation) { place in
@@ -260,7 +260,7 @@ struct CampusMapView: View {
 
   /// 左上の開閉ボタンと情報パネル
   private var topPanel: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: 8) {
       infoToggleButton
       if isInfoExpanded {
         infoContent
@@ -287,7 +287,7 @@ struct CampusMapView: View {
         isInfoExpanded = nextExpanded
       }
     } label: {
-      HStack(spacing: 6) {
+      HStack(spacing: 8) {
         Image(systemName: isManualDestination ? "mappin.and.ellipse" : "graduationcap.fill")
           .contentTransition(.symbolEffect(.replace))
         Text(isManualDestination ? "目的地" : "次の授業")
@@ -295,11 +295,11 @@ struct CampusMapView: View {
           .font(.caption2)
           .rotationEffect(.degrees(isInfoExpanded ? 180 : 0))
       }
-      .font(.subheadline.bold())
-      .padding(.horizontal, 14)
-      .padding(.vertical, 9)
-      .background(.ultraThinMaterial, in: Capsule())
-      .foregroundStyle(.cyan)
+      .font(.subheadline.weight(.medium))
+      .padding(.horizontal, 12)
+      .padding(.vertical, 8)
+      .campusFloatingCard(cornerRadius: CampusTheme.controlRadius)
+      .foregroundStyle(CampusTheme.accent)
     }
     .accessibilityLabel(isInfoExpanded ? "情報を隠す" : "情報を表示")
   }
@@ -322,13 +322,13 @@ struct CampusMapView: View {
     if let place = manualDestination {
       VStack(alignment: .leading, spacing: 8) {
         HStack {
-          VStack(alignment: .leading, spacing: 2) {
+          VStack(alignment: .leading, spacing: 4) {
             Text("\(place.campus.displayName)キャンパス")
               .font(.caption)
-              .foregroundStyle(.secondary)
+              .foregroundStyle(CampusTheme.textSecondary)
             Text(place.displayName)
-              .font(.headline)
-              .foregroundStyle(.primary)
+              .font(.headline.weight(.medium))
+              .foregroundStyle(CampusTheme.textPrimary)
           }
           Spacer()
         }
@@ -338,13 +338,13 @@ struct CampusMapView: View {
           }
         } label: {
           Label("次の授業に戻る", systemImage: "arrow.uturn.backward")
-            .font(.caption.bold())
-            .foregroundStyle(.cyan)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(CampusTheme.accent)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .padding()
-      .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+      .padding(16)
+      .campusFloatingCard()
     }
   }
 
@@ -358,7 +358,7 @@ struct CampusMapView: View {
         focusUserButton
       }
       .buttonStyle(.glass)
-      .buttonBorderShape(.roundedRectangle(radius: 18))
+      .buttonBorderShape(.roundedRectangle(radius: 16))
     }
   }
 
@@ -375,8 +375,8 @@ struct CampusMapView: View {
         Text("場所一覧")
           .font(.caption2.weight(.medium))
       }
-      .foregroundStyle(.primary)
-      .padding(.vertical, 10)
+      .foregroundStyle(CampusTheme.textPrimary)
+      .padding(.vertical, 8)
       .frame(minWidth: 64, minHeight: 56)
       .fixedSize()
       .contentShape(Rectangle())
@@ -396,8 +396,8 @@ struct CampusMapView: View {
         Text("現在地")
           .font(.caption2.weight(.medium))
       }
-      .foregroundStyle(.primary)
-      .padding(.vertical, 10)
+      .foregroundStyle(CampusTheme.textPrimary)
+      .padding(.vertical, 8)
       .frame(minWidth: 64, minHeight: 56)
       .fixedSize()
       .contentShape(Rectangle())
@@ -413,13 +413,13 @@ struct CampusMapView: View {
       UIApplication.shared.open(AppMetadata.openStreetMapCopyrightURL)
     } label: {
       Text("© OpenStreetMap contributors")
-        .font(.system(size: 10))
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(.ultraThinMaterial, in: Capsule())
+        .font(.caption2)
+        .foregroundStyle(CampusTheme.textSecondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .campusFloatingCard(cornerRadius: 6)
     }
-    .accessibilityLabel("地図データの著作権: OpenStreetMap contributors．タップで著作権ページを開きます")
+    .accessibilityLabel("地図データの著作権: OpenStreetMap contributors")
   }
 
   // MARK: - 状態バナー（信頼性の担保）
@@ -432,7 +432,7 @@ struct CampusMapView: View {
       StatusBanner(
         systemImageName: "calendar.badge.minus",
         message: todayClosureNote,
-        accentColor: .cyan
+        accentColor: CampusTheme.accent
       )
     }
 
@@ -446,15 +446,15 @@ struct CampusMapView: View {
       if destinationBuilding == nil {
         StatusBanner(
           systemImageName: "mappin.slash",
-          message: "この授業は講義棟が未登録のため，経路を表示できません．",
-          accentColor: .orange
+          message: "この授業は講義棟が未登録のため、経路を表示できません",
+          accentColor: CampusTheme.warning
         )
       }
     } else {
       StatusBanner(
         systemImageName: "calendar.badge.exclamationmark",
         message: emptyStateMessage,
-        accentColor: .cyan
+        accentColor: CampusTheme.accent
       )
     }
   }
@@ -466,34 +466,34 @@ struct CampusMapView: View {
     case .denied:
       StatusBanner(
         systemImageName: "location.slash.fill",
-        message: "位置情報の利用が許可されていません．設定アプリから許可してください．",
-        accentColor: .orange,
+        message: "位置情報が許可されていません。設定アプリから許可してください",
+        accentColor: CampusTheme.warning,
         actionTitle: "設定を開く",
         action: openAppSettings
       )
     case .restricted:
       StatusBanner(
         systemImageName: "exclamationmark.lock.fill",
-        message: "この端末では位置情報の利用が制限されています．",
-        accentColor: .orange
+        message: "この端末では位置情報の利用が制限されています",
+        accentColor: CampusTheme.warning
       )
     case .failed(let reason):
       StatusBanner(
         systemImageName: "antenna.radiowaves.left.and.right.slash",
         message: "現在地を取得できませんでした（\(reason)）",
-        accentColor: .orange,
+        accentColor: CampusTheme.warning,
         actionTitle: "再試行",
         action: { locationService.startUpdating() }
       )
     case .locating:
-      ProgressBanner(message: "現在地を取得しています…")
+      ProgressBanner(message: "現在地を取得中")
     case .idle, .available:
       // 「おおよその位置情報」（低精度）許可時は正確な経路が出せないため案内する
       if locationService.isReducedAccuracy {
         StatusBanner(
           systemImageName: "location.circle",
-          message: "おおよその位置情報のため，正確な経路を表示できません．設定で「正確な位置情報」をオンにしてください．",
-          accentColor: .orange,
+          message: "おおよその位置情報のため経路を表示できません。「正確な位置情報」をオンにしてください",
+          accentColor: CampusTheme.warning,
           actionTitle: "設定を開く",
           action: openAppSettings
         )
@@ -511,14 +511,14 @@ struct CampusMapView: View {
       StatusBanner(
         systemImageName: "studentdesk",
         message: "受講中：\(lecture.subjectName)（\(lecture.placeText)）",
-        accentColor: .green
+        accentColor: CampusTheme.positive
       )
     } else if isInClassBuildingViaWiFi, let building = nextLecture?.lecture.building {
       // 学内WiFiに接続中は，授業の棟の中にいるとみなす（屋内でGPSが弱くても成立）
       StatusBanner(
         systemImageName: "wifi",
         message: "\(building.displayName)にいます（学内WiFi接続中）",
-        accentColor: .green
+        accentColor: CampusTheme.positive
       )
     } else {
       routePhaseBanner
@@ -530,12 +530,12 @@ struct CampusMapView: View {
   private var routePhaseBanner: some View {
     switch viewModel.phase {
     case .calculatingRoute:
-      ProgressBanner(message: "経路を探索しています…")
+      ProgressBanner(message: "経路を探索中")
     case .failed(let message):
       StatusBanner(
         systemImageName: "arrow.triangle.2.circlepath",
         message: message,
-        accentColor: .orange,
+        accentColor: CampusTheme.warning,
         actionTitle: "再試行",
         action: {
           Task {
@@ -550,8 +550,8 @@ struct CampusMapView: View {
       if hasArrivedAtDestination, let building = viewModel.destinationBuilding {
         StatusBanner(
           systemImageName: "checkmark.circle.fill",
-          message: "\(building.displayName) に到着しました",
-          accentColor: .green
+          message: "\(building.displayName) に到着",
+          accentColor: CampusTheme.positive
         )
       } else if let route = viewModel.route, let building = viewModel.destinationBuilding {
         RouteSummaryCard(
@@ -564,7 +564,7 @@ struct CampusMapView: View {
     case .outsideCampus:
       outsideCampusBanner
     case .waitingForLocation:
-      ProgressBanner(message: "現在地の確定を待っています…")
+      ProgressBanner(message: "現在地の確定を待機中")
     case .idle:
       EmptyView()
     }
@@ -578,18 +578,18 @@ struct CampusMapView: View {
         let building = viewModel.destinationBuilding,
         let location = locationService.currentLocation
       else {
-        return "大学の周辺に入ると経路を表示します．"
+        return "大学周辺に入ると経路を表示します"
       }
       let distanceKm = building.campus.distanceMeters(from: location.coordinate) / 1_000
       return String(
-        format: "%@キャンパスまで約%.1fkm．周辺に入ると経路を表示します．",
+        format: "%@キャンパスまで約%.1fkm（周辺で経路を表示）",
         building.campus.displayName, distanceKm
       )
     }()
     StatusBanner(
       systemImageName: "figure.walk.circle",
       message: message,
-      accentColor: .cyan
+      accentColor: CampusTheme.accent
     )
   }
 

@@ -58,10 +58,10 @@ struct MapLibreMapView: UIViewRepresentable {
     static let groundColorLight = UIColor(red: 0.55, green: 0.74, blue: 0.58, alpha: 1.0)
     /// 平面施設の不透明度
     static let groundOpacity: Float = 1.0
-    /// 経路線の色（ダーク: シアン）
-    static let routeColorDark = UIColor.systemCyan
-    /// 経路線の色（ライト: 淡い背景でもコントラストが出る濃いめの青）
-    static let routeColorLight = UIColor(red: 0.0, green: 0.42, blue: 0.78, alpha: 1.0)
+    /// 経路線の色（ダーク: 明るいインディゴ）
+    static let routeColorDark = UIColor(red: 0.506, green: 0.549, blue: 0.973, alpha: 1.0)
+    /// 経路線の色（ライト: 淡い背景でも高コントラストなインディゴ・インク）
+    static let routeColorLight = UIColor(red: 0.216, green: 0.188, blue: 0.639, alpha: 1.0)
     /// 経路線の太さ
     static let routeWidth: CGFloat = 5.0
   }
