@@ -20,6 +20,8 @@ struct SettingsView: View {
   /// 課題（締切リマインダーの再予約に使う）
   @Query private var assignments: [Assignment]
 
+  @State private var testNotificationMessage: String?
+
   var body: some View {
     // @Observableの設定をToggle/Pickerへバインドするための束縛
     @Bindable var settings = settings
@@ -155,14 +157,33 @@ struct SettingsView: View {
           if settings.enableAssignmentReminder {
             Picker("通知タイミング", selection: $settings.assignmentReminderOffsetHours) {
               ForEach(AppSettings.assignmentReminderOffsetOptions, id: \.self) { hours in
-                Text(assignmentOffsetLabel(hours)).tag(hours)
+                Text(AppSettings.assignmentOffsetLabel(hours: hours)).tag(hours)
               }
+            }
+            Picker("直前リマインダー", selection: $settings.assignmentFinalReminderMinutes) {
+              ForEach(AppSettings.assignmentFinalReminderOptions, id: \.self) { minutes in
+                Text(AppSettings.assignmentFinalReminderLabel(minutes: minutes)).tag(minutes)
+              }
+            }
+            LabeledContent("予約中の通知", value: "\(notifications.scheduledAssignmentReminderCount)件")
+            Button("テスト通知を送る（5秒後）") {
+              Task {
+                let sent = await notifications.sendTestAssignmentNotification()
+                testNotificationMessage = sent
+                  ? "5秒後に課題リマインダーのテスト通知が届きます．"
+                  : "通知が許可されていないため送信できませんでした．"
+              }
+            }
+            if let testNotificationMessage {
+              Text(testNotificationMessage)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
           }
         } header: {
           Text("課題リマインダー")
         } footer: {
-          Text("manabaから取り込んだ未提出課題の締切前に通知します．")
+          Text("manabaから取り込んだ未提出課題の締切前に通知します．設定時刻を過ぎている課題も，締切前であれば直前フォロー通知を予約します．")
         }
 
         // 通知が許可されていない場合の案内
@@ -230,14 +251,9 @@ struct SettingsView: View {
     .onChange(of: settings.assignmentReminderOffsetHours) { _, _ in
       notifications.rescheduleAssignmentReminders(assignments: assignments, settings: settings)
     }
-  }
-
-  /// 課題リマインダーのタイミング表示（時間／日）
-  private func assignmentOffsetLabel(_ hours: Int) -> String {
-    if hours % 24 == 0 {
-      return "\(hours / 24)日前"
+    .onChange(of: settings.assignmentFinalReminderMinutes) { _, _ in
+      notifications.rescheduleAssignmentReminders(assignments: assignments, settings: settings)
     }
-    return "\(hours)時間前"
   }
 
   // MARK: - Private
@@ -253,7 +269,9 @@ struct SettingsView: View {
 
   /// いずれかの通知がオンなのに許可が拒否されている状態か
   private var isNotificationBlocked: Bool {
-    let wantsNotification = settings.enableClassReminder || settings.enableDepartureReminder
+    let wantsNotification = settings.enableClassReminder
+      || settings.enableDepartureReminder
+      || settings.enableAssignmentReminder
     return wantsNotification && notifications.authorizationStatus == .denied
   }
 

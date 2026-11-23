@@ -8,6 +8,7 @@
 
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// 課題一覧画面
 struct AssignmentListView: View {
@@ -65,6 +66,7 @@ struct AssignmentListView: View {
       if credentialStore.isRegistered {
         syncStatusBar
       }
+      assignmentReminderStatusBar
       Group {
         if assignments.isEmpty {
           emptyState
@@ -101,6 +103,9 @@ struct AssignmentListView: View {
       try? AssignmentImporter.deduplicate(into: modelContext)
       // 通知許可状態を反映し，締切リマインダーを最新化する
       await notifications.refreshAuthorizationStatus()
+      if settings.enableAssignmentReminder && notifications.authorizationStatus == .notDetermined {
+        await notifications.requestAuthorization()
+      }
       rescheduleReminders()
       // 画面を開いたとき，前回同期から5分以上空いていれば自動で同期する
       if credentialStore.isRegistered {
@@ -240,6 +245,11 @@ struct AssignmentListView: View {
               .foregroundStyle(.secondary)
           }
           dueLabel(for: assignment)
+          if !assignment.isDone, let reminderDate = notifications.nextReminderDate(for: assignment) {
+            Label("通知 \(Self.dueFormatter.string(from: reminderDate))", systemImage: "bell.fill")
+              .font(.caption2)
+              .foregroundStyle(.cyan)
+          }
         }
         Spacer(minLength: 0)
       }
@@ -340,6 +350,102 @@ struct AssignmentListView: View {
     } catch {
       errorMessage = "\(failureTitle)（\(error.localizedDescription)）．"
     }
+  }
+
+  /// 課題リマインダーの状態・クイック設定バー
+  private var assignmentReminderStatusBar: some View {
+    HStack(spacing: 8) {
+      if !settings.enableAssignmentReminder {
+        Image(systemName: "bell.slash")
+          .foregroundStyle(.secondary)
+        Text("課題の締切通知はオフです")
+          .foregroundStyle(.secondary)
+        Spacer(minLength: 0)
+        Button("オンにする") {
+          settings.enableAssignmentReminder = true
+          Task {
+            if notifications.authorizationStatus == .notDetermined {
+              await notifications.requestAuthorization()
+            } else {
+              await notifications.refreshAuthorizationStatus()
+            }
+            rescheduleReminders()
+          }
+        }
+      } else if notifications.authorizationStatus == .denied {
+        Image(systemName: "bell.badge.slash")
+          .foregroundStyle(.orange)
+        Text("通知がオフのため課題前に通知できません")
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+        Spacer(minLength: 0)
+        Button("設定を開く") {
+          if let url = URL(string: UIApplication.openSettingsURLString) {
+            openURL(url)
+          }
+        }
+      } else {
+        Image(systemName: "bell.badge.fill")
+          .foregroundStyle(.cyan)
+        Text("\(reminderSummaryText)（\(notifications.scheduledAssignmentReminderCount)件予約）")
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+        Spacer(minLength: 0)
+        Menu("変更") {
+          Section("メイン通知") {
+            ForEach(AppSettings.assignmentReminderOffsetOptions, id: \.self) { hours in
+              Button {
+                settings.assignmentReminderOffsetHours = hours
+                rescheduleReminders()
+              } label: {
+                if settings.assignmentReminderOffsetHours == hours {
+                  Label(AppSettings.assignmentOffsetLabel(hours: hours), systemImage: "checkmark")
+                } else {
+                  Text(AppSettings.assignmentOffsetLabel(hours: hours))
+                }
+              }
+            }
+          }
+          Section("直前リマインダー") {
+            ForEach(AppSettings.assignmentFinalReminderOptions, id: \.self) { minutes in
+              Button {
+                settings.assignmentFinalReminderMinutes = minutes
+                rescheduleReminders()
+              } label: {
+                if settings.assignmentFinalReminderMinutes == minutes {
+                  Label(AppSettings.assignmentFinalReminderLabel(minutes: minutes), systemImage: "checkmark")
+                } else {
+                  Text(AppSettings.assignmentFinalReminderLabel(minutes: minutes))
+                }
+              }
+            }
+          }
+          Section {
+            Button(role: .destructive) {
+              settings.enableAssignmentReminder = false
+              rescheduleReminders()
+            } label: {
+              Label("課題通知をオフ", systemImage: "bell.slash")
+            }
+          }
+        }
+      }
+    }
+    .font(.caption)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.horizontal)
+    .padding(.vertical, 6)
+    .background(.ultraThinMaterial)
+  }
+
+  private var reminderSummaryText: String {
+    let primary = AppSettings.assignmentOffsetLabel(hours: settings.assignmentReminderOffsetHours)
+    if settings.assignmentFinalReminderMinutes > 0,
+       settings.assignmentFinalReminderMinutes != settings.assignmentReminderOffsetHours * 60 {
+      let final = AppSettings.assignmentFinalReminderLabel(minutes: settings.assignmentFinalReminderMinutes)
+      return "通知 \(primary)・\(final)"
+    }
+    return "通知 \(primary)"
   }
 
   /// 現在の全課題で締切リマインダーを予約し直す
