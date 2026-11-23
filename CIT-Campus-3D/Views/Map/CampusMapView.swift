@@ -35,6 +35,9 @@ struct CampusMapView: View {
   /// 実効カラースキーム（アプリ外観設定に追従．マップのライト/ダーク描画に渡す）
   @Environment(\.colorScheme) private var colorScheme
 
+  /// 視差効果を減らす設定
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   /// マップ状態のViewModel
   @State private var viewModel: CampusMapViewModel
 
@@ -183,7 +186,9 @@ struct CampusMapView: View {
     }
     .sheet(isPresented: $isPlacePickerPresented) {
       PlacePickerView(currentLocation: locationService.currentLocation) { place in
-        manualDestination = place
+        withAnimation(InoMotion.openAnimation(reduceMotion: reduceMotion)) {
+          manualDestination = place
+        }
       }
       .presentationDetents([.medium, .large], selection: $placePickerDetent)
       .presentationDragIndicator(.visible)
@@ -259,6 +264,14 @@ struct CampusMapView: View {
       infoToggleButton
       if isInfoExpanded {
         infoContent
+          .transition(
+            reduceMotion
+              ? .opacity
+              : .asymmetric(
+                  insertion: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.96, anchor: .topLeading)),
+                  removal: .move(edge: .top).combined(with: .opacity)
+                )
+          )
       }
     }
   }
@@ -266,15 +279,21 @@ struct CampusMapView: View {
   /// 次の授業パネルの開閉ボタン
   private var infoToggleButton: some View {
     Button {
-      withAnimation(.easeInOut(duration: 0.2)) {
-        isInfoExpanded.toggle()
+      let nextExpanded = !isInfoExpanded
+      let animation = nextExpanded
+        ? InoMotion.openAnimation(reduceMotion: reduceMotion)
+        : InoMotion.closeAnimation(reduceMotion: reduceMotion)
+      withAnimation(animation) {
+        isInfoExpanded = nextExpanded
       }
     } label: {
       HStack(spacing: 6) {
         Image(systemName: isManualDestination ? "mappin.and.ellipse" : "graduationcap.fill")
+          .contentTransition(.symbolEffect(.replace))
         Text(isManualDestination ? "目的地" : "次の授業")
-        Image(systemName: isInfoExpanded ? "chevron.up" : "chevron.down")
+        Image(systemName: "chevron.down")
           .font(.caption2)
+          .rotationEffect(.degrees(isInfoExpanded ? 180 : 0))
       }
       .font(.subheadline.bold())
       .padding(.horizontal, 14)
@@ -314,7 +333,9 @@ struct CampusMapView: View {
           Spacer()
         }
         Button {
-          manualDestination = nil
+          withAnimation(InoMotion.closeAnimation(reduceMotion: reduceMotion)) {
+            manualDestination = nil
+          }
         } label: {
           Label("次の授業に戻る", systemImage: "arrow.uturn.backward")
             .font(.caption.bold())

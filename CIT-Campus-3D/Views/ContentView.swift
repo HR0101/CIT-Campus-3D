@@ -43,8 +43,11 @@ struct ContentView: View {
   /// 起動・バックグラウンドからの復帰ごとに1回，自動取得する．
   @State private var needsManabaSyncOnOpen = true
 
-  /// タブの構造は固定し，時刻だけを更新する．
+  /// 時刻の更新に使う基準日時（タブの構造は固定し，時刻だけを更新する）
   @State private var referenceDate = Date()
+
+  /// ino-ui-motion 弾性アーチモーダル用のルートコーディネータ
+  @State private var elasticSheetCoordinator = ElasticArchSheetCoordinator()
 
   /// 次の授業の判定サービス
   private let resolver = NextLectureResolver()
@@ -61,23 +64,26 @@ struct ContentView: View {
     )
 
     // TimelineViewの更新コンテキストにTabViewやSwiftDataのクエリを入れない．
-    TabView {
-      Tab("マップ", systemImage: "map.fill") {
-        CampusMapView(
-          locationService: locationService,
-          destinationBuilding: nextLecture?.lecture.building,
-          nextLecture: nextLecture,
-          emptyStateMessage: emptyLectureMessage(status: scheduleStatus),
-          todayClosureNote: todayClosureNote(status: scheduleStatus)
-        )
-      }
-      Tab("時間割", systemImage: "calendar") {
-        TimetableListView()
-      }
-      Tab("設定", systemImage: "gearshape") {
-        SettingsView()
+    ElasticArchSheetHost(coordinator: elasticSheetCoordinator) {
+      TabView {
+        Tab("マップ", systemImage: "map.fill") {
+          CampusMapView(
+            locationService: locationService,
+            destinationBuilding: nextLecture?.lecture.building,
+            nextLecture: nextLecture,
+            emptyStateMessage: emptyLectureMessage(status: scheduleStatus),
+            todayClosureNote: todayClosureNote(status: scheduleStatus)
+          )
+        }
+        Tab("時間割", systemImage: "calendar") {
+          TimetableListView()
+        }
+        Tab("設定", systemImage: "gearshape") {
+          SettingsView()
+        }
       }
     }
+    .environment(elasticSheetCoordinator)
     .task {
       // タブ切り替えでは再起動せず，画面を破棄したらキャンセルする時計．
       while !Task.isCancelled {

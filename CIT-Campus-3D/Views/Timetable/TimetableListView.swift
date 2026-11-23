@@ -44,6 +44,7 @@ struct TimetableListView: View {
 
   @Environment(\.modelContext) private var modelContext
   @Environment(\.scenePhase) private var scenePhase
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   /// 全授業（曜日→時限の順でソート）
   @Query(sort: [
@@ -155,15 +156,26 @@ struct TimetableListView: View {
         Group {
           if filteredLectures.isEmpty {
             emptyStateView
+              .transition(.opacity)
           } else {
             switch layout {
             case .list:
               timetableList
+                .transition(.opacity)
             case .grid:
               timetableGrid
+                .transition(.opacity)
             }
           }
         }
+        .animation(
+          reduceMotion ? InoMotion.reduceMotionCrossfade : InoMotion.pillSpring,
+          value: layout
+        )
+        .animation(
+          reduceMotion ? InoMotion.reduceMotionCrossfade : InoMotion.pillSpring,
+          value: selectedSemester
+        )
         importButtons
       }
       .navigationTitle("時間割")
@@ -210,7 +222,7 @@ struct TimetableListView: View {
       ) { result in
         handleFileImport(result)
       }
-      .sheet(isPresented: $isShowingRoomAttendance) {
+      .elasticArchSheet(isPresented: $isShowingRoomAttendance, detent: .compact) {
         RoomAttendanceView()
       }
       .sheet(isPresented: $isShowingScreenshotImport) {
@@ -223,7 +235,7 @@ struct TimetableListView: View {
           saveImportedDrafts(drafts, replaceExisting: replaceExisting)
         }
       }
-      .sheet(isPresented: $isShowingAddSheet) {
+      .elasticArchSheet(isPresented: $isShowingAddSheet, detent: .tall) {
         AddLectureView()
       }
       .sheet(item: $attendanceUrl) { destination in
