@@ -38,7 +38,7 @@ struct ImportPreviewView: View {
         Section {
           Toggle("既存の時間割を置き換える", isOn: $replaceExisting)
         } footer: {
-          Text("オフにすると，現在登録されている授業に追加します．集中講義（曜日・時限のない科目）はインポート対象外です．")
+          Text("オフにすると、現在登録されている授業に追加します。集中講義（曜日・時限のない科目）はインポート対象外です。")
         }
 
         ForEach(semesterGroups, id: \.semester) { group in
@@ -88,12 +88,13 @@ private struct DraftRow: View {
   var body: some View {
     HStack(spacing: 12) {
       Text("\(draft.weekday.shortName)\(draft.period)")
-        .font(.subheadline.bold())
+        .font(.subheadline.weight(.semibold))
+        .monospacedDigit()
         .frame(width: 44, height: 32)
-        .background(Color.cyan.opacity(0.2), in: RoundedRectangle(cornerRadius: 8))
-        .foregroundStyle(.cyan)
+        .background(CampusTheme.accentTint, in: RoundedRectangle(cornerRadius: CampusTheme.controlRadius))
+        .foregroundStyle(CampusTheme.accent)
 
-      VStack(alignment: .leading, spacing: 2) {
+      VStack(alignment: .leading, spacing: 4) {
         Text(draft.subjectName)
           .font(.subheadline)
         HStack(spacing: 8) {

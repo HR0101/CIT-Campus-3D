@@ -18,6 +18,7 @@ struct PlacePickerView: View {
   let onSelect: (CampusBuilding) -> Void
 
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   /// 検索文字列
   @State private var searchText = ""
@@ -54,6 +55,7 @@ struct PlacePickerView: View {
         }
       }
       .scrollContentBackground(.hidden)
+      .animation(InoMotion.openAnimation(reduceMotion: reduceMotion), value: searchText)
       .navigationTitle("場所を選んで案内")
       .navigationBarTitleDisplayMode(.inline)
       .searchable(text: $searchText, prompt: "建物・施設名で検索")
@@ -73,8 +75,9 @@ struct PlacePickerView: View {
   private func placeRow(_ place: CampusBuilding) -> some View {
     HStack(spacing: 12) {
       Image(systemName: "mappin.circle.fill")
-        .font(.title3)
-        .foregroundStyle(.cyan)
+        .font(.system(size: 18, weight: .medium))
+        .foregroundStyle(CampusTheme.accent)
+        .frame(width: 24)
 
       VStack(alignment: .leading, spacing: 2) {
         Text(place.name)
@@ -92,6 +95,7 @@ struct PlacePickerView: View {
       if let distanceText = distanceText(to: place) {
         Text(distanceText)
           .font(.caption)
+          .monospacedDigit()
           .foregroundStyle(.secondary)
       }
     }

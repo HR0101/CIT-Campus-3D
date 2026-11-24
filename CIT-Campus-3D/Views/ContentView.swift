@@ -129,7 +129,7 @@ struct ContentView: View {
     .alert("出席システムへのログインに失敗しました", isPresented: $showAttendanceLoginFailedAlert) {
       Button("OK", role: .cancel) {}
     } message: {
-      Text("設定の「出席システム連携」でユーザーID・パスワードを確認してください．")
+      Text("設定の「出席システム連携」でユーザーID・パスワードを確認してください。")
     }
     .task {
       await prepareNotifications()
@@ -243,18 +243,18 @@ struct ContentView: View {
   private func emptyLectureMessage(status: AcademicCalendar.ScheduleStatus) -> String {
     // 時間割そのものが未登録の場合はインポートを促す
     if lectures.isEmpty {
-      return "時間割が未登録です．時間割タブからインポートまたは追加してください．"
+      return "時間割が未登録です。時間割タブからインポートまたは追加してください。"
     }
     switch status {
     case .breakUntil(let nextSemester, let startKey):
       let dateText = AcademicCalendar.monthDayText(fromKey: startKey)
-      return "現在は授業期間外です．\(nextSemester.displayName)は\(dateText)から始まります．"
+      return "現在は授業期間外です。\(nextSemester.displayName)は\(dateText)から始まります。"
     case .afterAllTerms:
-      return "本年度の授業はすべて終了しました．"
+      return "本年度の授業はすべて終了しました。"
     case .closureDay(let reason):
-      return "本日は休講です（\(reason)）．今週これからの授業はありません．"
+      return "本日は休講です（\(reason)）。今週これからの授業はありません。"
     case .classDay, .unknownYear:
-      return "今後1週間の授業が見つかりません．"
+      return "今後1週間の授業が見つかりません。"
     }
   }
 
@@ -271,7 +271,9 @@ struct ContentView: View {
   /// 起動時の通知準備（許可状態の取得と，必要なら許可リクエスト）
   private func prepareNotifications() async {
     await notifications.refreshAuthorizationStatus()
-    let wantsNotification = settings.enableClassReminder || settings.enableDepartureReminder
+    let wantsNotification = settings.enableClassReminder
+      || settings.enableDepartureReminder
+      || settings.enableAssignmentReminder
     if wantsNotification && notifications.authorizationStatus == .notDetermined {
       await notifications.requestAuthorization()
     }

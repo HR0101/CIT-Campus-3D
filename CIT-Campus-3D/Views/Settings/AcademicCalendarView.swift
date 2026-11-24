@@ -33,6 +33,7 @@ struct AcademicCalendarView: View {
         ForEach(calendar.closureDays) { day in
           HStack {
             Text(calendar.monthDayWeekdayText(fromKey: day.key))
+              .monospacedDigit()
             Spacer()
             Text(day.reason)
               .foregroundStyle(.secondary)
@@ -41,7 +42,7 @@ struct AcademicCalendarView: View {
       } header: {
         Text("休講日")
       } footer: {
-        Text("授業期間内でも，これらの日は授業がないものとして「次の授業」を判定します．土曜・日曜はもともと授業がないものとして扱います．祝日でも授業実施日（祝日授業日）は通常どおり扱います．")
+        Text("授業期間内でも、これらの日は授業がないものとして「次の授業」を判定します。土曜・日曜はもともと授業がないものとして扱います。祝日でも授業実施日（祝日授業日）は通常どおり扱います。")
       }
 
       // 主な行事
@@ -49,6 +50,7 @@ struct AcademicCalendarView: View {
         ForEach(calendar.notableDays) { day in
           HStack {
             Text(calendar.monthDayWeekdayText(fromKey: day.key))
+              .monospacedDigit()
             Spacer()
             Text(day.label)
               .foregroundStyle(.secondary)

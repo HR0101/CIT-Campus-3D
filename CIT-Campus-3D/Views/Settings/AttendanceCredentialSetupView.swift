@@ -72,13 +72,13 @@ struct AttendanceCredentialSetupView: View {
       if portalStore.isRegistered {
         LabeledContent("使用するユーザーID", value: portalStore.userID ?? "—")
       } else {
-        Text("ポータルの認証情報が未登録です．設定の「CITポータル連携」で先に登録してください．")
+        Text("ポータルの認証情報が未登録です。設定の「CITポータル連携」で先に登録してください。")
           .foregroundStyle(.secondary)
       }
     } header: {
       Text("使用中の認証情報")
     } footer: {
-      Text("「CITポータル連携」で登録したID・パスワードを，出席の自動チェック・自動ログインにそのまま使用します．")
+      Text("「CITポータル連携」で登録したID・パスワードを、出席の自動チェック・自動ログインにそのまま使用します。")
     }
   }
 
@@ -92,7 +92,7 @@ struct AttendanceCredentialSetupView: View {
       } header: {
         Text("登録済み")
       } footer: {
-        Text("内容を変えるには下のフォームで上書き保存してください．")
+        Text("内容を変えるには下のフォームで上書き保存してください。")
       }
     }
   }
@@ -111,7 +111,7 @@ struct AttendanceCredentialSetupView: View {
       } label: {
         if didSave {
           Label("保存しました", systemImage: "checkmark.circle.fill")
-            .foregroundStyle(.green)
+            .foregroundStyle(CampusTheme.positive)
         } else {
           Text(attendanceStore.isRegistered ? "認証情報を更新" : "保存")
         }
@@ -139,7 +139,7 @@ struct AttendanceCredentialSetupView: View {
         Button("削除する", role: .destructive) { performDelete() }
         Button("キャンセル", role: .cancel) {}
       } message: {
-        Text("保存済みの出席システム専用のユーザーID・パスワードを端末から削除します．")
+        Text("保存済みの出席システム専用のユーザーID・パスワードを端末から削除します。")
       }
     }
   }

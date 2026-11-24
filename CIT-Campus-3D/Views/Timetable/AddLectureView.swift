@@ -158,9 +158,9 @@ struct AddLectureView: View {
       Form {
         if hasRestoredDraft {
           Section {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
               Image(systemName: "tray.and.arrow.down.fill")
-                .foregroundStyle(.cyan)
+                .foregroundStyle(CampusTheme.accent)
               Text("保存した下書きを復元しました")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -198,6 +198,7 @@ struct AddLectureView: View {
           }
           Text("\(startPeriod)限〜\(endPeriod)限（\(endPeriod - startPeriod + 1)コマ）をまとめて登録します")
             .font(.caption)
+            .monospacedDigit()
             .foregroundStyle(.secondary)
         }
 

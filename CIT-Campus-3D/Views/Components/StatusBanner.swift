@@ -11,17 +11,17 @@ import SwiftUI
 /// 状態通知バナー（エラー時はアクションボタン付き）
 struct StatusBanner: View {
 
-  /// バナーの見た目に関する定数
+  /// バナーの見た目に関する定数（4ptスケール）
   private enum BannerConstants {
-    static let cornerRadius: CGFloat = 14
-    static let iconSize: CGFloat = 20
+    static let iconSize: CGFloat = 18
+    static let iconColumnWidth: CGFloat = 24
   }
 
   /// 先頭に表示するSF Symbols名
   let systemImageName: String
   /// 通知メッセージ
   let message: String
-  /// アクセントカラー（情報: シアン，警告: オレンジなど）
+  /// アクセントカラー（情報: インディゴ，警告: アンバーなど）
   let accentColor: Color
   /// アクションボタンのタイトル（nilならボタン非表示）
   var actionTitle: String?
@@ -50,22 +50,23 @@ struct StatusBanner: View {
         }
       }
     }
-    .padding()
-    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: BannerConstants.cornerRadius))
+    .padding(16)
+    .campusFloatingCard()
   }
 
-  /// 先頭アイコン
+  /// 先頭アイコン（幅24ptの単一軸に揃える）
   private var iconView: some View {
     Image(systemName: systemImageName)
-      .font(.system(size: BannerConstants.iconSize, weight: .semibold))
+      .font(.system(size: BannerConstants.iconSize, weight: .medium))
       .foregroundStyle(accentColor)
+      .frame(width: BannerConstants.iconColumnWidth)
   }
 
   /// メッセージ本文（常に全文を折り返して表示する）
   private var messageView: some View {
     Text(message)
       .font(.footnote)
-      .foregroundStyle(.primary)
+      .foregroundStyle(CampusTheme.textPrimary)
       .fixedSize(horizontal: false, vertical: true)
       .frame(maxWidth: .infinity, alignment: .leading)
   }
@@ -76,7 +77,7 @@ struct StatusBanner: View {
     if let actionTitle, let action {
       Button(action: action) {
         Text(actionTitle)
-          .font(.footnote.bold())
+          .font(.footnote.weight(.medium))
           .foregroundStyle(accentColor)
       }
     }
@@ -86,26 +87,22 @@ struct StatusBanner: View {
 /// 進行中処理を示すバナー（スピナー付き）
 struct ProgressBanner: View {
 
-  /// バナーの見た目に関する定数
-  private enum BannerConstants {
-    static let cornerRadius: CGFloat = 14
-  }
-
   /// 進行中メッセージ
   let message: String
 
   var body: some View {
     HStack(spacing: 12) {
       ProgressView()
-        .tint(.cyan)
+        .tint(CampusTheme.accent)
+        .frame(width: 24)
 
       Text(message)
         .font(.footnote)
-        .foregroundStyle(.primary)
+        .foregroundStyle(CampusTheme.textPrimary)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .padding()
-    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: BannerConstants.cornerRadius))
+    .padding(16)
+    .campusFloatingCard()
   }
 }
 
@@ -115,13 +112,13 @@ struct ProgressBanner: View {
     VStack(spacing: 12) {
       StatusBanner(
         systemImageName: "location.slash.fill",
-        message: "位置情報の利用が許可されていません．",
-        accentColor: .orange,
+        message: "位置情報の利用が許可されていません。設定アプリから許可してください",
+        accentColor: CampusTheme.warning,
         actionTitle: "設定を開く",
         action: {}
       )
-      ProgressBanner(message: "経路を探索しています…")
+      ProgressBanner(message: "経路を探索中")
     }
-    .padding()
+    .padding(16)
   }
 }

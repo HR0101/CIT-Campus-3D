@@ -163,7 +163,7 @@ struct AssignmentListView: View {
           .foregroundStyle(.secondary)
       case .error:
         Image(systemName: "exclamationmark.triangle.fill")
-          .foregroundStyle(.orange)
+          .foregroundStyle(CampusTheme.warning)
         Text(manabaSync.lastErrorMessage ?? "同期に失敗しました")
           .foregroundStyle(.secondary)
           .lineLimit(2)
@@ -173,13 +173,14 @@ struct AssignmentListView: View {
         Image(systemName: "checkmark.icloud")
           .foregroundStyle(.secondary)
         Text(lastSyncText)
+          .monospacedDigit()
           .foregroundStyle(.secondary)
       }
     }
     .font(.caption)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.horizontal)
-    .padding(.vertical, 6)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 8)
     .background(.ultraThinMaterial)
   }
 
@@ -233,11 +234,11 @@ struct AssignmentListView: View {
     } label: {
       HStack(alignment: .top, spacing: 12) {
         Image(systemName: assignment.iconName)
-          .foregroundStyle(.tint)
-          .frame(width: 22)
-        VStack(alignment: .leading, spacing: 3) {
+          .foregroundStyle(CampusTheme.accent)
+          .frame(width: 24)
+        VStack(alignment: .leading, spacing: 4) {
           Text(assignment.title)
-            .font(.subheadline.bold())
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(.primary)
           if !assignment.courseName.isEmpty {
             Text(assignment.courseName)
@@ -248,7 +249,8 @@ struct AssignmentListView: View {
           if !assignment.isDone, let reminderDate = notifications.nextReminderDate(for: assignment) {
             Label("通知 \(Self.dueFormatter.string(from: reminderDate))", systemImage: "bell.fill")
               .font(.caption2)
-              .foregroundStyle(.cyan)
+              .monospacedDigit()
+              .foregroundStyle(CampusTheme.accent)
           }
         }
         Spacer(minLength: 0)
@@ -280,9 +282,10 @@ struct AssignmentListView: View {
     if let due = assignment.dueDate {
       let now = Date()
       let color: Color = assignment.isDone ? .secondary
-        : (due < now ? .red : (due.timeIntervalSince(now) < 86400 ? .orange : .secondary))
+        : (due < now ? CampusTheme.danger : (due.timeIntervalSince(now) < 86400 ? CampusTheme.warning : .secondary))
       Label("締切 \(Self.dueFormatter.string(from: due))", systemImage: "clock")
         .font(.caption)
+        .monospacedDigit()
         .foregroundStyle(color)
     } else {
       Label("締切なし", systemImage: "clock")
@@ -298,9 +301,9 @@ struct AssignmentListView: View {
       Label("未提出の課題はありません", systemImage: "checkmark.circle")
     } description: {
       if credentialStore.isRegistered {
-        Text("「今すぐ同期」を押すと，manabaから未提出課題を取得します．")
+        Text("「今すぐ同期」を押すと、manabaから未提出課題を取得します。")
       } else {
-        Text("manabaから課題を取得するには，上の「ID・パスワード」からMARINE ID・パスワードを登録してください．未登録の場合は手動でログインして取り込めます．")
+        Text("manabaから課題を取得するには、上の「ID・パスワード」からMARINE ID・パスワードを登録してください。未登録の場合は手動でログインして取り込めます。")
       }
     } actions: {
       if credentialStore.isRegistered {
@@ -374,7 +377,7 @@ struct AssignmentListView: View {
         }
       } else if notifications.authorizationStatus == .denied {
         Image(systemName: "bell.badge.slash")
-          .foregroundStyle(.orange)
+          .foregroundStyle(CampusTheme.warning)
         Text("通知がオフのため課題前に通知できません")
           .foregroundStyle(.secondary)
           .lineLimit(1)
@@ -386,8 +389,9 @@ struct AssignmentListView: View {
         }
       } else {
         Image(systemName: "bell.badge.fill")
-          .foregroundStyle(.cyan)
+          .foregroundStyle(CampusTheme.accent)
         Text("\(reminderSummaryText)（\(notifications.scheduledAssignmentReminderCount)件予約）")
+          .monospacedDigit()
           .foregroundStyle(.secondary)
           .lineLimit(1)
         Spacer(minLength: 0)
@@ -433,8 +437,8 @@ struct AssignmentListView: View {
     }
     .font(.caption)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.horizontal)
-    .padding(.vertical, 6)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 8)
     .background(.ultraThinMaterial)
   }
 

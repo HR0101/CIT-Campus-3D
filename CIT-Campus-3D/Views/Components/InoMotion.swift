@@ -52,13 +52,13 @@ enum InoMotion {
   /// 弾性アーチの凸ピーク変位量（886px幅で+140px ≒ +62pt相当）
   static let archPeakBow: CGFloat = 58
 
-  // MARK: カラートークン
+  // MARK: カラートークン（CampusTheme 単一インディゴ・インク統合）
 
   /// テキスト判定の下線・飛翔オーブ色
-  static let detectionAccent = Color(red: 0.08, green: 0.68, blue: 0.85)
+  static var detectionAccent: Color { CampusTheme.accent }
 
   /// 判定結果ピル背景色
-  static let pillBackground = Color(red: 0.06, green: 0.56, blue: 0.72)
+  static var pillBackground: Color { CampusTheme.accentFill }
 
   /// 非活性送信ボタン背景色
   static let inactiveControl = Color(red: 0.643, green: 0.627, blue: 0.671)
@@ -67,7 +67,7 @@ enum InoMotion {
   static let activeInk = Color(red: 0.098, green: 0.090, blue: 0.161)
 
   /// 破壊的アクション色
-  static let destructiveCrimson = Color(red: 0.86, green: 0.22, blue: 0.25)
+  static var destructiveCrimson: Color { CampusTheme.danger }
 
   // MARK: ヘルパー
 
@@ -313,7 +313,7 @@ struct ElasticArchSheetHost<Content: View>: View {
     sheetHeight: CGFloat,
     verticalOffset: CGFloat
   ) -> some View {
-    let shape = ElasticArchSheetShape(cornerRadius: 28, bowOffset: bowOffset)
+    let shape = ElasticArchSheetShape(cornerRadius: 24, bowOffset: bowOffset)
     let surfaceColor = Color(uiColor: .systemGroupedBackground)
     let bottomOverhang: CGFloat = 120
 
@@ -321,17 +321,17 @@ struct ElasticArchSheetHost<Content: View>: View {
       shape
         .fill(surfaceColor)
         .overlay {
-          shape.stroke(Color.primary.opacity(0.08), lineWidth: 1)
+          shape.stroke(CampusTheme.hairline, lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.18), radius: 22, y: -6)
+        .shadow(color: .black.opacity(0.12), radius: 16, y: -4)
 
       VStack(spacing: 0) {
         // ドラッグハンドル（シート上端のアーチ頂点に追従）
         Capsule()
-          .fill(Color.secondary.opacity(0.4))
-          .frame(width: 36, height: 5)
-          .padding(.top, 9)
-          .padding(.bottom, 5)
+          .fill(CampusTheme.textMuted.opacity(0.45))
+          .frame(width: 36, height: 4)
+          .padding(.top, 8)
+          .padding(.bottom, 8)
           .offset(y: -bowOffset)
           .frame(maxWidth: .infinity)
           .contentShape(Rectangle())
@@ -744,19 +744,20 @@ struct InoCausalDetectedPill: View {
 
       Text(isExpanded ? detectedLabel : idleLabel)
         .font(.caption.weight(.medium))
-        .foregroundStyle(isExpanded ? .white : .secondary)
+        .monospacedDigit()
+        .foregroundStyle(isExpanded ? .white : CampusTheme.textSecondary)
         .lineLimit(1)
         .contentTransition(.numericText())
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 6)
     .background {
-      Capsule()
-        .fill(isExpanded ? InoMotion.pillBackground : Color(uiColor: .secondarySystemGroupedBackground))
+      RoundedRectangle(cornerRadius: CampusTheme.controlRadius)
+        .fill(isExpanded ? InoMotion.pillBackground : CampusTheme.raisedSurface)
     }
     .overlay {
-      Capsule()
-        .strokeBorder(isExpanded ? .clear : Color.primary.opacity(0.08), lineWidth: 1)
+      RoundedRectangle(cornerRadius: CampusTheme.controlRadius)
+        .strokeBorder(isExpanded ? .clear : CampusTheme.hairline, lineWidth: 1)
     }
     .animation(InoMotion.pillSpring, value: isExpanded)
   }

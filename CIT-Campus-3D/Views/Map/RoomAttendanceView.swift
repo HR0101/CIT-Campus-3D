@@ -28,24 +28,25 @@ struct RoomAttendanceView: View {
     guard isInputValid else {
       return InoMotion.inactiveControl.opacity(colorScheme == .dark ? 0.35 : 0.72)
     }
-    return colorScheme == .dark ? .cyan : InoMotion.activeInk
+    return CampusTheme.accentFill
   }
 
   private var actionButtonForeground: Color {
     guard isInputValid else {
       return .white.opacity(colorScheme == .dark ? 0.65 : 0.92)
     }
-    return colorScheme == .dark ? .black : .white
+    return .white
   }
 
   var body: some View {
     NavigationStack {
       Form {
         Section {
-          VStack(alignment: .leading, spacing: 10) {
+          VStack(alignment: .leading, spacing: 8) {
             InoCausalTextFieldAnchor(text: roomNumber) {
               TextField("教室番号（例：731、642、1024）", text: $roomNumber)
                 .keyboardType(.numberPad)
+                .monospacedDigit()
                 .focused($isRoomFocused)
             }
 
@@ -71,7 +72,7 @@ struct RoomAttendanceView: View {
               .frame(maxWidth: .infinity)
               .padding(.vertical, 12)
               .foregroundStyle(actionButtonForeground)
-              .background(actionButtonBackground, in: Capsule())
+              .background(actionButtonBackground, in: RoundedRectangle(cornerRadius: CampusTheme.controlRadius))
               .animation(.easeInOut(duration: InoMotion.activationDuration), value: isInputValid)
           }
           .buttonStyle(.plain)
