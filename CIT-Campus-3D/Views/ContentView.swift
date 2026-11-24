@@ -16,6 +16,7 @@ struct ContentView: View {
 
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.modelContext) private var modelContext
+  @Environment(\.openURL) private var openURL
   @Environment(AppSettings.self) private var settings
   @Environment(NotificationService.self) private var notifications
   @Environment(PortalCredentialStore.self) private var credentialStore
@@ -25,6 +26,9 @@ struct ContentView: View {
 
   /// 全登録授業
   @Query private var lectures: [Lecture]
+
+  /// 取り込み済みのmanaba課題（締切リマインダーの自動予約に使う）
+  @Query(sort: \Assignment.dueDate) private var assignments: [Assignment]
 
   /// 取り込み済みの時間割変更（休講で「次の授業」を除外するために使う）
   @Query private var classChanges: [ClassChange]
@@ -85,6 +89,15 @@ struct ContentView: View {
     // 授業・現在地・設定・許可状態のいずれかが変わったら通知を予約し直す
     .task(id: schedulingKey(upcoming: upcoming)) {
       await rescheduleNotifications(upcoming: upcoming)
+    }
+    // 課題・設定・許可状態のいずれかが変わったら課題の締切前通知を予約し直す
+    .task(id: assignmentSchedulingKey()) {
+      notifications.rescheduleAssignmentReminders(assignments: assignments, settings: settings)
+    }
+    .onChange(of: notifications.pendingAssignmentURL) { _, url in
+      guard let url else { return }
+      notifications.pendingAssignmentURL = nil
+      openURL(url)
     }
     .alert(
       "出席しますか？",
@@ -261,7 +274,8 @@ struct ContentView: View {
   /// 直近の授業群に対して通知を予約し直す
   private func rescheduleNotifications(upcoming: [NextLectureResult]) async {
     guard !upcoming.isEmpty else {
-      notifications.cancelAll()
+      // 授業が無い期間でも課題の締切通知は消さない
+      notifications.cancelClassReminders()
       return
     }
 
@@ -323,10 +337,32 @@ struct ContentView: View {
     ].joined(separator: "|")
   }
 
+  /// 課題リマインダーの再予約が必要かどうかを表すキー
+  private func assignmentSchedulingKey() -> String {
+    let assignmentPart = assignments
+      .filter { !$0.isDone && $0.dueDate != nil }
+      .prefix(NotificationKeyConstants.maxAssignmentsInKey)
+      .map { assignment in
+        let dueTs = Int(assignment.dueDate?.timeIntervalSince1970 ?? 0)
+        return "\(NotificationService.assignmentKey(for: assignment))#\(dueTs)#\(assignment.title)"
+      }
+      .joined(separator: ",")
+
+    return [
+      assignmentPart,
+      "\(settings.enableAssignmentReminder)",
+      "\(settings.assignmentReminderOffsetHours)",
+      "\(settings.assignmentFinalReminderMinutes)",
+      "\(notifications.authorizationStatus.rawValue)",
+    ].joined(separator: "|")
+  }
+
   /// 通知キーの定数
   private enum NotificationKeyConstants {
     /// キーに含める授業の最大件数
     static let maxLecturesInKey = 8
+    /// キーに含める課題の最大件数
+    static let maxAssignmentsInKey = 32
     /// 現在地の丸め単位（1/step度．2000なら約0.0005度＝約55m）
     static let locationRoundStep: Double = 2_000
   }
@@ -334,7 +370,7 @@ struct ContentView: View {
 
 #Preview {
   ContentView()
-    .modelContainer(for: Lecture.self, inMemory: true)
+    .modelContainer(for: [Lecture.self, Assignment.self, ClassChange.self], inMemory: true)
     .environment(AppSettings())
     .environment(NotificationService())
 }

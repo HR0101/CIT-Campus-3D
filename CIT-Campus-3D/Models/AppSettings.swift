@@ -55,6 +55,7 @@ final class AppSettings {
     static let departureBufferMinutes = "settings.departureBufferMinutes"
     static let enableAssignmentReminder = "settings.enableAssignmentReminder"
     static let assignmentReminderOffsetHours = "settings.assignmentReminderOffsetHours"
+    static let assignmentFinalReminderMinutes = "settings.assignmentFinalReminderMinutes"
   }
 
   /// 設定の初期値
@@ -75,6 +76,8 @@ final class AppSettings {
     static let enableAssignmentReminder = true
     /// 課題の締切の何時間前に通知するか
     static let assignmentReminderOffsetHours = 24
+    /// 課題の直前リマインダー（分前．0はオフ）
+    static let assignmentFinalReminderMinutes = 60
   }
 
   /// 授業前リマインダーの選択肢（分）
@@ -82,7 +85,9 @@ final class AppSettings {
   /// 出発リマインダーの余裕時間の選択肢（分）
   static let departureBufferOptions = [0, 5, 10, 15]
   /// 課題リマインダーの選択肢（締切の何時間前か）
-  static let assignmentReminderOffsetOptions = [3, 6, 12, 24, 48]
+  static let assignmentReminderOffsetOptions = [1, 3, 6, 12, 24, 48]
+  /// 課題の直前リマインダーの選択肢（締切の何分前か．0はなし）
+  static let assignmentFinalReminderOptions = [0, 15, 30, 60, 120]
 
   private let store: UserDefaults
 
@@ -126,6 +131,11 @@ final class AppSettings {
     didSet { store.set(assignmentReminderOffsetHours, forKey: Keys.assignmentReminderOffsetHours) }
   }
 
+  /// 課題の締切直前に追加で通知する分数（0はオフ）
+  var assignmentFinalReminderMinutes: Int {
+    didSet { store.set(assignmentFinalReminderMinutes, forKey: Keys.assignmentFinalReminderMinutes) }
+  }
+
   init(userDefaults: UserDefaults = .standard) {
     self.store = userDefaults
     // 既定値を登録してから読み出す（初回起動時も意図した既定値になる）
@@ -138,6 +148,7 @@ final class AppSettings {
       Keys.departureBufferMinutes: DefaultValues.departureBufferMinutes,
       Keys.enableAssignmentReminder: DefaultValues.enableAssignmentReminder,
       Keys.assignmentReminderOffsetHours: DefaultValues.assignmentReminderOffsetHours,
+      Keys.assignmentFinalReminderMinutes: DefaultValues.assignmentFinalReminderMinutes,
     ])
     // init内の代入ではdidSetは呼ばれないため，二重書き込みは発生しない
     self.appearance = AppearanceMode(rawValue: userDefaults.string(forKey: Keys.appearance) ?? "")
@@ -149,5 +160,17 @@ final class AppSettings {
     self.departureBufferMinutes = userDefaults.integer(forKey: Keys.departureBufferMinutes)
     self.enableAssignmentReminder = userDefaults.bool(forKey: Keys.enableAssignmentReminder)
     self.assignmentReminderOffsetHours = userDefaults.integer(forKey: Keys.assignmentReminderOffsetHours)
+    self.assignmentFinalReminderMinutes = userDefaults.integer(forKey: Keys.assignmentFinalReminderMinutes)
+  }
+
+  /// 課題リマインダーのタイミング表示（時間／日）
+  static func assignmentOffsetLabel(hours: Int) -> String {
+    hours % 24 == 0 ? "\(hours / 24)日前" : "\(hours)時間前"
+  }
+
+  /// 課題の直前リマインダー表示（分／時間／なし）
+  static func assignmentFinalReminderLabel(minutes: Int) -> String {
+    guard minutes > 0 else { return "なし" }
+    return minutes % 60 == 0 ? "\(minutes / 60)時間前" : "\(minutes)分前"
   }
 }

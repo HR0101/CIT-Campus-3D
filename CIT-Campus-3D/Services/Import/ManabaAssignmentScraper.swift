@@ -147,13 +147,21 @@ enum ManabaAssignmentScraper {
 /// スクレイプ結果をAssignmentDraftへ変換するマッパー
 enum ManabaAssignmentMapper {
 
-  /// manabaの日時文字列のフォーマット（例: 2026-06-24 17:00）
-  private static let dateFormatter: DateFormatter = {
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
-    formatter.dateFormat = "yyyy-MM-dd HH:mm"
-    return formatter
+  /// manabaの日時文字列のフォーマット群（秒あり・スラッシュ区切りにも対応）
+  private static let dateFormatters: [DateFormatter] = {
+    let formats = [
+      "yyyy-MM-dd HH:mm",
+      "yyyy-MM-dd HH:mm:ss",
+      "yyyy/MM/dd HH:mm",
+      "yyyy/MM/dd HH:mm:ss",
+    ]
+    return formats.map { format in
+      let formatter = DateFormatter()
+      formatter.locale = Locale(identifier: "en_US_POSIX")
+      formatter.timeZone = TimeZone(identifier: "Asia/Tokyo")
+      formatter.dateFormat = format
+      return formatter
+    }
   }()
 
   /// スクレイプ結果を有効なドラフト配列へ変換する（URL・タイトルが空の行は除外）
@@ -177,11 +185,28 @@ enum ManabaAssignmentMapper {
     }
   }
 
-  /// 日時文字列をDateへ変換する（空・不正ならnil）
-  private static func parseDate(_ text: String) -> Date? {
+  /// 日時文字列をDateへ変換する（前後装飾テキストやスラッシュ表記を吸収．空・不正ならnil）
+  static func parseDate(_ text: String) -> Date? {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else { return nil }
-    return dateFormatter.date(from: trimmed)
+    for formatter in dateFormatters {
+      if let date = formatter.date(from: trimmed) {
+        return date
+      }
+    }
+    // 「2026-11-18 23:59 まで」等から日時部分だけ抽出して再試行する
+    if let range = trimmed.range(
+      of: "\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}\\s+\\d{1,2}:\\d{2}(?::\\d{2})?",
+      options: .regularExpression
+    ) {
+      let candidate = String(trimmed[range])
+      for formatter in dateFormatters {
+        if let date = formatter.date(from: candidate) {
+          return date
+        }
+      }
+    }
+    return nil
   }
 
   /// 課題URLからID（末尾の数値列）を取り出す．取り出せない場合はURL全体をキーにする
